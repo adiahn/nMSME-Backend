@@ -1,0 +1,1389 @@
+nMSME AWARDS PORTAL - API DOCUMENTATION
+==========================================
+
+BASE URL: http://localhost:5000/api
+
+AUTHENTICATION
+==============
+All protected routes require Authorization header: Bearer <JWT_TOKEN>
+
+1. AUTHENTICATION ENDPOINTS
+==========================
+
+1.1 Register User (Single Step)
+POST /auth/register
+Request:
+{
+  "first_name": "John",
+  "last_name": "Doe", 
+  "email": "john@example.com",
+  "phone": "+2348012345678",
+  "password": "password123",
+  "role": "applicant"
+}
+Response:
+{
+  "success": true,
+  "message": "Registration successful. Please check your email to verify your account.",
+  "data": {
+    "user": {
+      "id": "user_id",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "role": "applicant",
+      "is_verified": false
+    }
+  }
+}
+
+1.2 Multi-Step Registration
+
+1.2.1 Step 1: Send OTP
+POST /auth/register/step1
+Request:
+{
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john@example.com",
+  "phone": "+2348012345678"
+}
+Response:
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "data": {
+    "user_id": "user_id",
+    "otp": "123456",
+    "expires_in": 600
+  }
+}
+
+1.2.2 Step 2: Verify OTP
+POST /auth/register/step2
+Request:
+{
+  "user_id": "user_id",
+  "otp": "123456"
+}
+Response:
+{
+  "success": true,
+  "message": "OTP verified successfully",
+  "data": {
+    "user_id": "user_id"
+  }
+}
+
+1.2.3 Step 3: Complete Registration
+POST /auth/register/step3
+Request:
+{
+  "user_id": "user_id",
+  "password": "password123",
+  "role": "applicant"
+}
+Response:
+{
+  "success": true,
+  "message": "Registration completed successfully",
+  "data": {
+    "token": "jwt_token_here",
+    "user": {
+      "id": "user_id",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "role": "applicant",
+      "is_verified": true
+    }
+  }
+}
+
+1.2 Login User
+POST /auth/login
+Request:
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+Response:
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "jwt_token_here",
+    "user": {
+      "id": "user_id",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "role": "applicant",
+      "is_verified": true
+    }
+  }
+}
+
+1.3 Verify Email
+POST /auth/verify-email
+Request:
+{
+  "token": "email_verification_token"
+}
+Response:
+{
+  "success": true,
+  "message": "Email verified successfully"
+}
+
+1.4 Forgot Password
+POST /auth/forgot-password
+Request:
+{
+  "email": "john@example.com"
+}
+Response:
+{
+  "success": true,
+  "message": "Password reset email sent"
+}
+
+1.5 Reset Password
+POST /auth/reset-password
+Request:
+{
+  "token": "reset_token",
+  "password": "new_password123"
+}
+Response:
+{
+  "success": true,
+  "message": "Password reset successful"
+}
+
+2. USER PROFILE ENDPOINTS
+=========================
+
+2.1 Get User Profile
+GET /user/profile
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "user_id",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com",
+    "phone": "+2348012345678",
+    "role": "applicant",
+    "is_verified": true,
+    "created_at": "2024-01-01T00:00:00.000Z"
+  }
+}
+
+2.2 Update User Profile
+PUT /user/profile
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "first_name": "John",
+  "last_name": "Smith",
+  "phone": "+2348012345679"
+}
+Response:
+{
+  "success": true,
+  "message": "Profile updated successfully",
+  "data": {
+    "id": "user_id",
+    "first_name": "John",
+    "last_name": "Smith",
+    "email": "john@example.com",
+    "phone": "+2348012345679",
+    "role": "applicant",
+    "is_verified": true
+  }
+}
+
+2.3 Change Password
+PUT /user/change-password
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "current_password": "old_password",
+  "new_password": "new_password123"
+}
+Response:
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+
+2.4 Get Application Statistics
+GET /user/application-stats
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "total_applications": 3,
+    "submitted": 2,
+    "draft": 1,
+    "under_review": 1,
+    "approved": 0,
+    "rejected": 0,
+    "average_score": 85.5
+  }
+}
+
+3. BUSINESS PROFILE ENDPOINTS
+=============================
+
+3.1 Get Business Profile
+GET /user/business-profile
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "business_id",
+    "business_name": "Tech Solutions Ltd",
+    "cac_number": "RC123456",
+    "sector": "Technology",
+    "msme_category": "small",
+    "year_established": 2020,
+    "employee_count": 25,
+    "annual_revenue": 50000000,
+    "address": "123 Tech Street, Lagos",
+    "city": "Lagos",
+    "state": "Lagos",
+    "website": "https://techsolutions.com",
+    "business_description": "Innovative tech solutions"
+  }
+}
+
+3.2 Create Business Profile
+POST /user/business-profile
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "business_name": "Tech Solutions Ltd",
+  "cac_number": "RC123456",
+  "sector": "Technology",
+  "msme_category": "small",
+  "year_established": 2020,
+  "employee_count": 25,
+  "annual_revenue": 50000000,
+  "address": "123 Tech Street, Lagos",
+  "city": "Lagos",
+  "state": "Lagos",
+  "website": "https://techsolutions.com",
+  "business_description": "Innovative tech solutions"
+}
+Response:
+{
+  "success": true,
+  "message": "Business profile created successfully",
+  "data": {
+    "id": "business_id",
+    "business_name": "Tech Solutions Ltd",
+    "cac_number": "RC123456",
+    "sector": "Technology",
+    "msme_category": "small"
+  }
+}
+
+3.3 Update Business Profile
+PUT /user/business-profile
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "business_name": "Tech Solutions Ltd Updated",
+  "employee_count": 30,
+  "annual_revenue": 60000000
+}
+Response:
+{
+  "success": true,
+  "message": "Business profile updated successfully"
+}
+
+3.4 Delete Business Profile
+DELETE /user/business-profile
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Business profile deleted successfully"
+}
+
+4. APPLICATION ENDPOINTS
+========================
+
+4.1 Get User Applications
+GET /applications?page=1&limit=10&status=submitted
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "applications": [
+      {
+        "id": "app_id",
+        "category": "technology_innovation",
+        "title": "AI-Powered Solution",
+        "status": "submitted",
+        "submission_date": "2024-01-15T00:00:00.000Z",
+        "business_profile": {
+          "business_name": "Tech Solutions Ltd",
+          "sector": "Technology"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 1,
+      "pages": 1
+    }
+  }
+}
+
+4.2 Get Specific Application
+GET /applications/:id
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "app_id",
+    "category": "technology_innovation",
+    "title": "AI-Powered Solution",
+    "description": "Innovative AI solution",
+    "status": "submitted",
+    "submission_date": "2024-01-15T00:00:00.000Z",
+    "business_profile": {
+      "business_name": "Tech Solutions Ltd",
+      "sector": "Technology"
+    },
+    "documents": [
+      {
+        "id": "doc_id",
+        "name": "Business Plan",
+        "type": "pdf",
+        "url": "cloudinary_url"
+      }
+    ]
+  }
+}
+
+4.3 Create Application
+POST /applications
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "category": "it",
+  "business_description": "Innovative AI solution for SMEs",
+  "key_achievements": "Increased efficiency by 40%",
+  "products_services": "AI-powered analytics platform",
+  "market_reach": "national",
+  "jobs_created": 25,
+  "women_youth_percentage": 60,
+  "sustainability_initiatives": "Green computing practices",
+  "export_activity": "Planning to expand to West Africa",
+  "award_funds_usage": "Scale operations and hire more staff",
+  "business_type": "limited-company",
+  "owner_position": "CEO",
+  "alternate_phone": "+2348012345679",
+  "why_deserve_award": "Our solution addresses critical SME challenges",
+  "achievements": "Won 3 industry awards, served 500+ SMEs",
+  "challenges": "Limited funding for expansion",
+  "future_goals": "Expand to 10 African countries",
+  "target_market": "Small and medium enterprises in Nigeria"
+}
+Response:
+{
+  "success": true,
+  "message": "Application created successfully",
+  "data": {
+    "id": "app_id",
+    "category": "it",
+    "status": "draft"
+  }
+}
+
+4.4 Update Application
+PUT /applications/:id
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "title": "Updated AI-Powered Solution",
+  "description": "Enhanced AI solution for SMEs"
+}
+Response:
+{
+  "success": true,
+  "message": "Application updated successfully"
+}
+
+4.5 Submit Application
+POST /applications/:id/submit
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Application submitted successfully"
+}
+
+4.6 Withdraw Application
+POST /applications/:id/withdraw
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Application withdrawn successfully"
+}
+
+4.7 Delete Application
+DELETE /applications/:id
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Application deleted successfully"
+}
+
+4.8 Get Application Status
+GET /applications/:id/status
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "status": "submitted",
+    "submission_date": "2024-01-15T00:00:00.000Z",
+    "current_phase": "judging",
+    "timeline": {
+      "submission_deadline": "2024-02-01T00:00:00.000Z",
+      "judging_deadline": "2024-03-01T00:00:00.000Z",
+      "results_date": "2024-04-01T00:00:00.000Z"
+    }
+  }
+}
+
+4.9 Get Application Timeline
+GET /applications/:id/timeline
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "current_status": "submitted",
+    "submission_date": "2024-01-15T00:00:00.000Z",
+    "review_deadline": "2024-02-01T00:00:00.000Z",
+    "results_date": "2024-04-01T00:00:00.000Z",
+    "timeline_phases": [
+      {
+        "phase": "registration",
+        "start_date": "2024-01-01T00:00:00.000Z",
+        "end_date": "2024-01-31T00:00:00.000Z",
+        "is_active": false,
+        "description": "Application registration period"
+      },
+      {
+        "phase": "judging",
+        "start_date": "2024-02-01T00:00:00.000Z",
+        "end_date": "2024-03-01T00:00:00.000Z",
+        "is_active": true,
+        "description": "Application review and judging"
+      }
+    ]
+  }
+}
+
+5. DOCUMENT UPLOAD ENDPOINTS
+============================
+
+5.1 Upload Documents
+POST /documents/upload/:applicationId
+Headers: Authorization: Bearer <token>
+Content-Type: multipart/form-data
+Request:
+FormData with files: business_plan, financial_statements, etc.
+Response:
+{
+  "success": true,
+  "message": "Documents uploaded successfully",
+  "data": {
+    "uploaded_documents": [
+      {
+        "id": "doc_id",
+        "name": "Business Plan",
+        "type": "pdf",
+        "size": 2048576,
+        "url": "cloudinary_url"
+      }
+    ]
+  }
+}
+
+5.2 Get Application Documents
+GET /documents/:applicationId
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "doc_id",
+      "name": "Business Plan",
+      "type": "pdf",
+      "size": 2048576,
+      "url": "cloudinary_url",
+      "upload_date": "2024-01-15T00:00:00.000Z"
+    }
+  ]
+}
+
+5.3 Get Document Details
+GET /documents/:applicationId/:documentId
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "doc_id",
+    "name": "Business Plan",
+    "type": "pdf",
+    "size": 2048576,
+    "url": "cloudinary_url",
+    "upload_date": "2024-01-15T00:00:00.000Z"
+  }
+}
+
+5.4 Delete Document
+DELETE /documents/:applicationId/:documentId
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Document deleted successfully"
+}
+
+5.5 Get Document Download URL
+GET /documents/:applicationId/:documentId/download
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "download_url": "secure_cloudinary_url",
+    "expires_in": 3600
+  }
+}
+
+6. JUDGE ENDPOINTS
+==================
+
+6.1 Get Judge Dashboard
+GET /judge/dashboard
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "total_assignments": 5,
+    "completed_reviews": 3,
+    "pending_reviews": 2,
+    "average_score": 85.5,
+    "recent_assignments": [
+      {
+        "id": "assignment_id",
+        "application_title": "AI Solution",
+        "status": "in_review",
+        "assigned_date": "2024-01-15T00:00:00.000Z"
+      }
+    ]
+  }
+}
+
+6.2 Get Judge Assignments
+GET /judge/assignments?status=assigned
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "assignments": [
+      {
+        "id": "assignment_id",
+        "application": {
+          "id": "app_id",
+          "title": "AI Solution",
+          "category": "technology_innovation",
+          "description": "Innovative AI solution"
+        },
+        "status": "assigned",
+        "assigned_date": "2024-01-15T00:00:00.000Z",
+        "deadline": "2024-02-01T00:00:00.000Z"
+      }
+    ]
+  }
+}
+
+6.3 Get Assignment Details
+GET /judge/assignments/:id
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "assignment_id",
+    "application": {
+      "id": "app_id",
+      "title": "AI Solution",
+      "category": "technology_innovation",
+      "description": "Innovative AI solution",
+      "problem_statement": "SMEs struggle with data",
+      "solution_description": "AI analytics platform",
+      "impact_metrics": "40% efficiency increase",
+      "future_plans": "Scale to 1000+ SMEs"
+    },
+    "status": "assigned",
+    "assigned_date": "2024-01-15T00:00:00.000Z",
+    "deadline": "2024-02-01T00:00:00.000Z"
+  }
+}
+
+6.4 Start Review
+POST /judge/assignments/:id/start-review
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Review started successfully"
+}
+
+6.5 Declare Conflict
+POST /judge/assignments/:id/declare-conflict
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "conflict_reason": "Personal relationship with applicant"
+}
+Response:
+{
+  "success": true,
+  "message": "Conflict declared successfully"
+}
+
+6.6 Submit Score
+POST /judge/assignments/:id/score
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "innovation_differentiation": 12,
+  "market_traction_growth": 18,
+  "impact_job_creation": 13,
+  "financial_health_governance": 14,
+  "inclusion_sustainability": 8,
+  "scalability": 13,
+  "award_use": 9,
+  "comments": "Excellent innovation and market potential"
+}
+Response:
+{
+  "success": true,
+  "message": "Score submitted successfully",
+  "data": {
+    "total_score": 87,
+    "grade": "A"
+  }
+}
+
+6.7 Get Judge Scores
+GET /judge/scores
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "score_id",
+      "application_title": "AI Solution",
+      "total_score": 87,
+      "grade": "A",
+      "submitted_date": "2024-01-20T00:00:00.000Z"
+    }
+  ]
+}
+
+6.8 Get Judge Profile
+GET /judge/profile
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "expertise_sectors": ["Technology", "Finance"],
+    "assigned_applications_count": 5,
+    "completed_reviews": 3,
+    "average_score": 85.5,
+    "max_applications_per_judge": 10
+  }
+}
+
+6.9 Update Judge Profile
+PUT /judge/profile
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "expertise_sectors": ["Technology", "Finance", "Healthcare"],
+  "max_applications_per_judge": 15
+}
+Response:
+{
+  "success": true,
+  "message": "Profile updated successfully"
+}
+
+7. ADMIN ENDPOINTS
+==================
+
+7.1 Get Admin Dashboard
+GET /admin/dashboard
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "total_applications": 150,
+    "submitted_applications": 120,
+    "under_review": 80,
+    "completed_reviews": 40,
+    "total_judges": 15,
+    "active_judges": 12,
+    "categories": {
+      "technology_innovation": 30,
+      "agriculture": 25,
+      "manufacturing": 20
+    }
+  }
+}
+
+7.2 Get All Applications
+GET /admin/applications?page=1&limit=10&status=submitted&category=technology
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "applications": [
+      {
+        "id": "app_id",
+        "title": "AI Solution",
+        "category": "technology_innovation",
+        "status": "submitted",
+        "user": {
+          "name": "John Doe",
+          "email": "john@example.com"
+        },
+        "business_profile": {
+          "business_name": "Tech Solutions Ltd"
+        },
+        "submission_date": "2024-01-15T00:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 120,
+      "pages": 12
+    }
+  }
+}
+
+7.3 Get Application Details
+GET /admin/applications/:id
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "app_id",
+    "title": "AI Solution",
+    "category": "technology_innovation",
+    "status": "under_review",
+    "user": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    },
+    "business_profile": {
+      "business_name": "Tech Solutions Ltd",
+      "sector": "Technology"
+    },
+    "assignments": [
+      {
+        "judge_name": "Judge Smith",
+        "status": "completed",
+        "score": 87
+      }
+    ],
+    "average_score": 85.5,
+    "final_grade": "A"
+  }
+}
+
+7.4 Update Application Status
+PUT /admin/applications/:id/status
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "status": "approved"
+}
+Response:
+{
+  "success": true,
+  "message": "Application status updated successfully"
+}
+
+7.5 Get All Judges
+GET /admin/judges
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "judge_id",
+      "name": "Judge Smith",
+      "email": "judge@example.com",
+      "expertise_sectors": ["Technology", "Finance"],
+      "assigned_count": 5,
+      "completed_count": 3,
+      "average_score": 85.5,
+      "status": "active"
+    }
+  ]
+}
+
+7.6 Assign Applications to Judges
+POST /admin/judges/:id/assign
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "application_ids": ["app_id_1", "app_id_2"]
+}
+Response:
+{
+  "success": true,
+  "message": "Applications assigned successfully"
+}
+
+7.7 Update Judge Status
+PUT /admin/judges/:id/status
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "status": "inactive"
+}
+Response:
+{
+  "success": true,
+  "message": "Judge status updated successfully"
+}
+
+7.8 Get System Settings
+GET /admin/settings
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "key": "submission_deadline",
+      "value": "2024-02-01T00:00:00.000Z",
+      "description": "Application submission deadline",
+      "category": "timeline",
+      "data_type": "date"
+    }
+  ]
+}
+
+7.9 Update System Setting
+PUT /admin/settings/:key
+Headers: Authorization: Bearer <token>
+Request:
+{
+  "value": "2024-02-15T00:00:00.000Z"
+}
+Response:
+{
+  "success": true,
+  "message": "Setting updated successfully"
+}
+
+7.10 Get Analytics
+GET /admin/analytics
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "applications_by_category": {
+      "technology_innovation": 30,
+      "agriculture": 25,
+      "manufacturing": 20
+    },
+    "applications_by_status": {
+      "draft": 30,
+      "submitted": 80,
+      "under_review": 40
+    },
+    "score_distribution": {
+      "A+": 10,
+      "A": 20,
+      "B+": 30,
+      "B": 25,
+      "C": 10,
+      "D": 5
+    },
+    "judge_performance": [
+      {
+        "judge_name": "Judge Smith",
+        "completed_reviews": 10,
+        "average_score": 85.5
+      }
+    ]
+  }
+}
+
+8. DASHBOARD ENDPOINTS
+======================
+
+8.1 Get Public Overview
+GET /dashboard/overview
+Response:
+{
+  "success": true,
+  "data": {
+    "total_applications": 150,
+    "total_categories": 5,
+    "current_phase": "judging",
+    "submission_deadline": "2024-02-01T00:00:00.000Z"
+  }
+}
+
+8.2 Get User Statistics
+GET /dashboard/user-stats
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "total_applications": 3,
+    "submitted_applications": 2,
+    "draft_applications": 1,
+    "average_score": 85.5,
+    "best_grade": "A"
+  }
+}
+
+8.3 Get Judge Statistics
+GET /dashboard/judge-stats
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "total_assignments": 10,
+    "completed_reviews": 8,
+    "pending_reviews": 2,
+    "average_score": 85.5,
+    "performance_rank": 3
+  }
+}
+
+8.4 Get Admin Statistics
+GET /dashboard/admin-stats
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "total_applications": 150,
+    "total_users": 120,
+    "total_judges": 15,
+    "system_health": "excellent"
+  }
+}
+
+8.5 Get Timeline
+GET /dashboard/timeline
+Response:
+{
+  "success": true,
+  "data": {
+    "current_phase": "judging",
+    "phases": [
+      {
+        "phase": "registration",
+        "start_date": "2024-01-01T00:00:00.000Z",
+        "end_date": "2024-01-31T00:00:00.000Z",
+        "is_active": false
+      },
+      {
+        "phase": "judging",
+        "start_date": "2024-02-01T00:00:00.000Z",
+        "end_date": "2024-03-01T00:00:00.000Z",
+        "is_active": true
+      }
+    ]
+  }
+}
+
+8.6 Get Categories
+GET /dashboard/categories
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "category": "technology_innovation",
+      "name": "Technology Innovation",
+      "description": "Innovative technology solutions",
+      "application_count": 30
+    }
+  ]
+}
+
+9. CATEGORIES ENDPOINTS
+========================
+
+9.1 Get All Categories
+GET /categories
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "fashion",
+      "name": "Fashion Award",
+      "description": "Fashion and textile businesses including clothing, accessories, and design"
+    },
+    {
+      "id": "it",
+      "name": "Information Technology (IT) Award",
+      "description": "Technology and software businesses including digital solutions and tech services"
+    },
+    {
+      "id": "agribusiness",
+      "name": "Agribusiness Award",
+      "description": "Agricultural businesses including farming, processing, and agri-tech"
+    },
+    {
+      "id": "food_beverage",
+      "name": "Food & Beverage Award",
+      "description": "Food and beverage businesses including restaurants, catering, and food processing"
+    },
+    {
+      "id": "light_manufacturing",
+      "name": "Light Manufacturing Award",
+      "description": "Light manufacturing businesses including production and assembly"
+    },
+    {
+      "id": "creative_enterprise",
+      "name": "Creative Enterprise Award",
+      "description": "Creative businesses including arts, media, entertainment, and design"
+    },
+    {
+      "id": "nano_category",
+      "name": "Special Nano Category",
+      "description": "Special category for nano businesses with unique characteristics"
+    },
+    {
+      "id": "emerging_enterprise",
+      "name": "Emerging Enterprise Award",
+      "description": "Emerging and innovative businesses with high growth potential"
+    }
+  ]
+}
+
+9.2 Get Category Details
+GET /categories/:id
+Response:
+{
+  "success": true,
+  "data": {
+    "id": "fashion",
+    "name": "Fashion Award",
+    "description": "Fashion and textile businesses including clothing, accessories, and design",
+    "criteria": [
+      "Innovation in design",
+      "Market reach",
+      "Sustainability practices",
+      "Job creation"
+    ]
+  }
+}
+
+9. NOTIFICATION ENDPOINTS
+=========================
+
+9.1 Get User Notifications
+GET /user/notifications?page=1&limit=10&is_read=false
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "data": {
+    "notifications": [
+      {
+        "id": "notif_id",
+        "type": "application_status",
+        "title": "Application Submitted",
+        "message": "Your application has been submitted successfully",
+        "is_read": false,
+        "priority": "medium",
+        "category": "application",
+        "created_at": "2024-01-15T00:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 5,
+      "pages": 1
+    }
+  }
+}
+
+9.2 Mark Notification as Read
+PUT /user/notifications/:id/read
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "Notification marked as read"
+}
+
+9.3 Mark All Notifications as Read
+PUT /user/notifications/read-all
+Headers: Authorization: Bearer <token>
+Response:
+{
+  "success": true,
+  "message": "All notifications marked as read"
+}
+
+10. ERROR RESPONSES
+===================
+
+10.1 Validation Error
+Response:
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "email",
+      "message": "Email is required"
+    }
+  ]
+}
+
+10.2 Authentication Error
+Response:
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+
+10.3 Not Found Error
+Response:
+{
+  "success": false,
+  "message": "Resource not found"
+}
+
+10.4 Server Error
+Response:
+{
+  "success": false,
+  "message": "Internal server error"
+}
+
+11. DATA MODELS
+===============
+
+11.1 User Roles
+- applicant: Can create applications and manage profile
+- judge: Can review assigned applications
+- admin: Can manage system and users
+- sponsor: Can view public information
+- public: Can view public information
+
+11.2 Application Categories
+- fashion: Fashion Award
+- it: Information Technology (IT) Award
+- agribusiness: Agribusiness Award
+- food_beverage: Food & Beverage Award
+- light_manufacturing: Light Manufacturing Award
+- creative_enterprise: Creative Enterprise Award
+- nano_category: Special Nano Category
+- emerging_enterprise: Emerging Enterprise Award
+
+11.3 Application Status
+- draft: Application is being worked on
+- submitted: Application submitted for review
+- under_review: Being reviewed by judges
+- approved: Application approved
+- rejected: Application rejected
+- withdrawn: Application withdrawn by user
+
+11.4 MSME Categories
+- nano: < 10 employees, < 50M revenue
+- micro: 10-49 employees, 50M-500M revenue
+- small: 50-199 employees, 500M-5B revenue
+- medium: 200+ employees, 5B+ revenue
+
+11.5 Business Types
+- sole-proprietorship: Individual business ownership
+- partnership: Business owned by multiple partners
+- limited-company: Limited liability company
+- cooperative: Cooperative business model
+- ngo: Non-governmental organization
+
+11.6 Scoring Rubric (100 points total)
+- Innovation & Differentiation: 15 points
+- Market Traction & Growth: 20 points
+- Impact & Job Creation: 15 points
+- Financial Health & Governance: 15 points
+- Inclusion & Sustainability: 10 points
+- Scalability: 15 points
+- Award Use: 10 points
+
+11.7 Grades
+- A+: 95-100 points
+- A: 85-94 points
+- B+: 75-84 points
+- B: 65-74 points
+- C: 50-64 points
+- D: Below 50 points
+
+12. FILE UPLOAD SPECIFICATIONS
+==============================
+
+12.1 Supported File Types
+- PDF (.pdf)
+- Word documents (.doc, .docx)
+- Excel files (.xls, .xlsx)
+- Images (.jpg, .jpeg, .png)
+- Text files (.txt)
+
+12.2 File Size Limits
+- Maximum file size: 10MB per file
+- Maximum total upload: 50MB per application
+
+12.3 Required Documents
+- Business License
+- Tax Clearance Certificate
+- Financial Statements
+- Supporting Documents
+- CAC Certificate
+- Business Plan
+- Product Images
+- Video Pitch
+
+13. SECURITY FEATURES
+=====================
+
+13.1 Authentication
+- JWT tokens with expiration
+- Password hashing with bcrypt
+- Email verification required
+- Password reset functionality
+
+13.2 Authorization
+- Role-based access control
+- Route protection middleware
+- Resource ownership validation
+
+13.3 Input Validation
+- Request body validation
+- File type and size validation
+- SQL injection prevention
+- XSS protection
+
+13.4 Rate Limiting
+- 100 requests per 15 minutes per IP
+- 1000 requests per hour per user
+
+14. DEPLOYMENT INFORMATION
+==========================
+
+14.1 Environment Variables Required
+- MONGODB_URI: MongoDB connection string
+- JWT_SECRET: JWT signing secret
+- CLOUDINARY_CLOUD_NAME: Cloudinary cloud name
+- CLOUDINARY_API_KEY: Cloudinary API key
+- CLOUDINARY_API_SECRET: Cloudinary API secret
+
+**Email Configuration:**
+- SENDGRID_API_KEY: SendGrid API key (for OTP emails)
+- SENDGRID_HOST: smtp.sendgrid.net
+- SENDGRID_PORT: 587
+- SENDGRID_USERNAME: apikey
+- SENDGRID_PASSWORD: SendGrid API key
+- EMAIL_FROM: noreply@nmsme-awards.com
+
+**Legacy Email Configuration (for other emails):**
+- EMAIL_HOST: SMTP host
+- EMAIL_PORT: SMTP port
+- EMAIL_USER: SMTP username
+- EMAIL_PASS: SMTP password
+
+14.2 Production Considerations
+- Use HTTPS in production
+- Set up proper CORS origins
+- Configure rate limiting
+- Set up monitoring and logging
+- Use environment-specific configurations
+
+15. EMAIL SERVICE CONFIGURATION
+==============================
+
+15.1 SendGrid Integration (OTP Emails)
+- **Service**: SendGrid SMTP
+- **Purpose**: Sending OTP codes during registration
+- **Template**: Professional HTML email with styled OTP display
+- **Expiration**: 10 minutes
+- **Error Handling**: Automatic cleanup of temporary users if email fails
+
+15.2 Legacy Email Service (Other Emails)
+- **Service**: Nodemailer with configurable SMTP
+- **Purpose**: Email verification, password reset, notifications, welcome emails
+- **Templates**: HTML emails with consistent branding
+
+15.3 Email Types and Services
+- **OTP Emails**: SendGrid (high deliverability, fast delivery)
+- **Verification Emails**: Legacy SMTP
+- **Password Reset**: Legacy SMTP
+- **Status Notifications**: Legacy SMTP
+- **Welcome Emails**: Legacy SMTP
+
+16. TESTING ENDPOINTS
+=====================
+
+16.1 Health Check
+GET /health
+Response:
+{
+  "success": true,
+  "message": "Server is running",
+  "timestamp": "2024-01-15T00:00:00.000Z"
+}
+
+This documentation covers all implemented endpoints and their usage.
+For additional support, refer to the README.md file in the project root.

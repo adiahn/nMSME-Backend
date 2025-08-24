@@ -1,0 +1,345 @@
+# nMSME Awards Portal - Video Upload System Update
+# Changed from File Upload to Link-Only (YouTube/Vimeo)
+
+## SUMMARY OF CHANGES
+The video pitch upload system has been updated to ONLY accept YouTube and Vimeo links instead of file uploads. This change affects multiple files and requires frontend updates.
+
+## BACKEND CHANGES MADE
+
+### 1. Application Model (models/Application.js)
+- REMOVED: cloudinary_id, duration, thumbnail_url fields from pitch_video schema
+- ADDED: video_id (extracted from URL), platform (youtube/vimeo) fields
+- UPDATED: validateRequiredDocuments() method to check for video link instead of file
+
+### 2. Document Upload Routes (routes/documents.js)
+- REMOVED: pitch_video from document types (no longer a file upload)
+- REMOVED: Video file validation (MP4, AVI, MOV)
+- REMOVED: File upload logic for videos
+- ENHANCED: Video link upload endpoint with better URL validation and video ID extraction
+- UPDATED: Delete video endpoint to remove Cloudinary deletion logic
+
+### 3. Documentation (APPLICATION_REQUIREMENTS.md)
+- UPDATED: All references to reflect link-only approach
+- REMOVED: File upload instructions for video pitch
+- ADDED: Link-only implementation examples
+
+## FRONTEND CHANGES REQUIRED
+
+### 1. Remove File Upload UI for Video
+```javascript
+// REMOVE this from your video upload component
+const fileInput = <input type="file" accept="video/*" />;
+```
+
+### 2. Add URL Input Field
+```javascript
+// ADD this to your video upload component
+const [videoUrl, setVideoUrl] = useState('');
+
+const VideoPitchUpload = () => {
+  return (
+    <div>
+      <label>Pitch Video URL (YouTube or Vimeo)</label>
+      <input
+        type="url"
+        value={videoUrl}
+        onChange={(e) => setVideoUrl(e.target.value)}
+        placeholder="https://www.youtube.com/watch?v=..."
+        required
+      />
+      <small>Upload your video to YouTube or Vimeo and paste the link here</small>
+    </div>
+  );
+};
+```
+
+### 3. Update Upload Function
+```javascript
+// OLD - Remove file upload logic
+const uploadVideoFile = async (file) => {
+  const formData = new FormData();
+  formData.append('documents', file);
+  formData.append('document_type', 'pitch_video');
+  // ... file upload logic
+};
+
+// NEW - Add link upload logic
+const uploadVideoLink = async (videoUrl) => {
+  try {
+    const response = await fetch(`/api/documents/upload-video-link/${applicationId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ video_url: videoUrl })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      console.log('Video link uploaded:', result.data.pitch_video);
+    }
+  } catch (error) {
+    console.error('Error uploading video link:', error);
+  }
+};
+```
+
+### 4. Add URL Validation
+```javascript
+const validateVideoUrl = (url) => {
+  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
+  const vimeoRegex = /^(https?:\/\/)?(www\.)?(vimeo\.com)\/.+/;
+  
+  return youtubeRegex.test(url) || vimeoRegex.test(url);
+};
+
+const handleVideoUrlSubmit = () => {
+  if (!validateVideoUrl(videoUrl)) {
+    alert('Please enter a valid YouTube or Vimeo URL');
+    return;
+  }
+  
+  uploadVideoLink(videoUrl);
+};
+```
+
+### 5. Update Validation Logic
+```javascript
+// Update your application validation to check for video link
+const validateApplication = (application) => {
+  const errors = [];
+  
+  // Check for video link instead of file
+  if (!application.pitch_video?.url || !application.pitch_video?.platform) {
+    errors.push('Pitch Video URL is required (YouTube or Vimeo)');
+  }
+  
+  // ... other validations
+  return errors;
+};
+```
+
+## API ENDPOINT DETAILS
+
+### Video Link Upload Endpoint
+```http
+POST /api/documents/upload-video-link/:applicationId
+Content-Type: application/json
+
+{
+  "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+}
+```
+
+### Response Format
+```json
+{
+  "success": true,
+  "message": "Video link uploaded successfully",
+  "data": {
+    "pitch_video": {
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "is_youtube_link": true,
+      "youtube_vimeo_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "video_id": "dQw4w9WgXcQ",
+      "platform": "youtube"
+    },
+    "application_id": "application_id_here"
+  }
+}
+```
+
+## SUPPORTED URL FORMATS
+
+### YouTube URLs
+- https://www.youtube.com/watch?v=VIDEO_ID
+- https://youtu.be/VIDEO_ID
+- http://www.youtube.com/watch?v=VIDEO_ID
+
+### Vimeo URLs
+- https://vimeo.com/VIDEO_ID
+- https://www.vimeo.com/VIDEO_ID
+- http://vimeo.com/VIDEO_ID
+
+## VALIDATION RULES
+
+1. URL must be a valid YouTube or Vimeo link
+2. Video ID must be successfully extracted from URL
+3. Only one pitch video per application
+4. Video link is mandatory for application submission
+
+## BENEFITS OF LINK-ONLY APPROACH
+
+### ✅ Advantages
+- No file size limits - Users can upload high-quality videos
+- No bandwidth issues - Videos are hosted on professional platforms
+- Better performance - No video processing on your servers
+- Automatic optimization - YouTube/Vimeo handle video optimization
+- Embedding support - Easy to embed videos in your application
+- Analytics - Users can see video views and engagement
+
+### ⚠️ Considerations
+- External dependency - Relies on YouTube/Vimeo availability
+- URL validation - Need to validate URL format
+- User workflow - Users need to upload to platform first
+- Privacy - Videos are publicly accessible (unless private)
+
+## IMPLEMENTATION CHECKLIST
+
+### Backend (Already Done)
+- [x] Updated Application model schema
+- [x] Modified document upload routes
+- [x] Enhanced video link validation
+- [x] Updated documentation
+
+### Frontend (To Do)
+- [ ] Remove file upload UI for video pitch
+- [ ] Add URL input field for video links
+- [ ] Implement URL validation
+- [ ] Update upload function to use link endpoint
+- [ ] Update application validation logic
+- [ ] Test with YouTube and Vimeo URLs
+- [ ] Update error handling for video uploads
+
+## TESTING
+
+### Test URLs
+```javascript
+// Valid YouTube URLs
+"https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+"https://youtu.be/dQw4w9WgXcQ"
+
+// Valid Vimeo URLs
+"https://vimeo.com/123456789"
+"https://www.vimeo.com/123456789"
+
+// Invalid URLs
+"https://example.com/video"
+"not-a-url"
+```
+
+### Expected Response
+```json
+{
+  "success": true,
+  "data": {
+    "pitch_video": {
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "is_youtube_link": true,
+      "youtube_vimeo_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "video_id": "dQw4w9WgXcQ",
+      "platform": "youtube"
+    }
+  }
+}
+```
+
+## ERROR HANDLING
+
+### Common Errors
+1. **Invalid URL**: "Video URL must be from YouTube or Vimeo"
+2. **Video ID Extraction Failed**: "Could not extract video ID from URL"
+3. **Already Uploaded**: "Pitch video already uploaded"
+4. **Unauthorized**: "Not authorized to upload video for this application"
+
+### Frontend Error Handling
+```javascript
+const handleVideoUpload = async (videoUrl) => {
+  try {
+    const response = await uploadVideoLink(videoUrl);
+    if (response.success) {
+      // Handle success
+      console.log('Video uploaded successfully');
+    }
+  } catch (error) {
+    // Handle specific errors
+    if (error.message.includes('YouTube or Vimeo')) {
+      alert('Please provide a valid YouTube or Vimeo URL');
+    } else if (error.message.includes('already uploaded')) {
+      alert('A video has already been uploaded for this application');
+    } else {
+      alert('Error uploading video: ' + error.message);
+    }
+  }
+};
+```
+
+## MIGRATION NOTES
+
+### For Existing Applications
+- Applications with existing video files will continue to work
+- New applications must use link-only approach
+- No migration needed for existing data
+
+### For Development
+- Remove any video file upload components
+- Update form validation to check for video links
+- Test with both YouTube and Vimeo URLs
+- Ensure proper error handling
+
+## SECURITY CONSIDERATIONS
+
+1. **URL Validation**: Only accept YouTube and Vimeo URLs
+2. **Video ID Extraction**: Validate extracted video IDs
+3. **Rate Limiting**: Apply rate limiting to video upload endpoint
+4. **Input Sanitization**: Sanitize URL inputs to prevent injection attacks
+
+## PERFORMANCE IMPACT
+
+### Positive Impact
+- Reduced server storage requirements
+- No video processing overhead
+- Faster upload times
+- Better scalability
+
+### Considerations
+- Dependency on external services
+- Need for URL validation
+- Potential for broken links
+
+## SUPPORT
+
+### For Users
+- Clear instructions to upload to YouTube/Vimeo first
+- URL format examples
+- Error messages for invalid URLs
+- Help documentation
+
+### For Developers
+- API documentation updated
+- Test cases provided
+- Error handling examples
+- Migration guide available
+
+---
+
+## QUICK REFERENCE
+
+### New API Endpoint
+```
+POST /api/documents/upload-video-link/:applicationId
+```
+
+### Required Request Body
+```json
+{
+  "video_url": "https://www.youtube.com/watch?v=VIDEO_ID"
+}
+```
+
+### Response Fields
+- `url`: Original video URL
+- `video_id`: Extracted video ID
+- `platform`: "youtube" or "vimeo"
+- `is_youtube_link`: Boolean flag
+
+### Frontend Changes
+1. Replace file input with URL input
+2. Add URL validation
+3. Update upload function
+4. Handle new response format
+
+---
+
+This update ensures the video pitch system is more efficient, scalable, and user-friendly while maintaining all required functionality for the nMSME Awards Portal.
