@@ -248,6 +248,12 @@ const applicationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  // Market reach information
+  market_reach: {
+    type: String,
+    required: true,
+    maxlength: 200
+  },
   // Impact metrics from PRD
   jobs_created: {
     type: Number,
@@ -414,7 +420,7 @@ applicationSchema.methods.isCompleteForSubmission = function() {
   const hasAllRequiredDocs = Object.values(requiredDocs).every(Boolean);
   
   const hasRequiredFields = 
-    this.business_overview &&
+    this.business_description &&
     this.key_achievements &&
     this.products_services_description &&
     this.market_reach &&
@@ -434,5 +440,72 @@ applicationSchema.pre('save', function(next) {
   }
   next();
 });
+
+// Method to get anonymized application data for judges (first round)
+applicationSchema.methods.getAnonymizedData = function() {
+  return {
+    _id: this._id,
+    category: this.sector,
+    business_description: this.business_description,
+    key_achievements: this.key_achievements,
+    products_services_description: this.products_services_description,
+    market_reach: this.market_reach,
+    jobs_created: this.jobs_created,
+    women_youth_percentage: this.women_youth_percentage,
+    export_activity: this.export_activity,
+    sustainability_initiatives: this.sustainability_initiatives,
+    award_usage_plans: this.award_usage_plans,
+    pitch_video: this.pitch_video,
+    documents: this.documents,
+    msme_strata: this.msme_strata,
+    year_established: this.year_established,
+    employee_count: this.employee_count,
+    revenue_band: this.revenue_band,
+    // Anonymized identifiers
+    application_code: this.generateApplicationCode(),
+    sector: this.sector,
+    location: {
+      state: this.location.state,
+      lga: this.location.lga
+    }
+  };
+};
+
+// Method to get partially anonymized data (final round - judges can see business names)
+applicationSchema.methods.getPartiallyAnonymizedData = function() {
+  return {
+    _id: this._id,
+    business_name: this.business_name,
+    category: this.sector,
+    business_description: this.business_description,
+    key_achievements: this.key_achievements,
+    products_services_description: this.products_services_description,
+    market_reach: this.market_reach,
+    jobs_created: this.jobs_created,
+    women_youth_percentage: this.women_youth_percentage,
+    export_activity: this.export_activity,
+    sustainability_initiatives: this.sustainability_initiatives,
+    award_usage_plans: this.award_usage_plans,
+    pitch_video: this.pitch_video,
+    documents: this.documents,
+    msme_strata: this.msme_strata,
+    year_established: this.year_established,
+    employee_count: this.employee_count,
+    revenue_band: this.revenue_band,
+    sector: this.sector,
+    location: {
+      state: this.location.state,
+      lga: this.location.lga
+    }
+  };
+};
+
+// Generate unique application code for anonymization
+applicationSchema.methods.generateApplicationCode = function() {
+  const timestamp = this._id.toString().slice(-6);
+  const sectorCode = this.sector.substring(0, 2).toUpperCase();
+  const msmeCode = this.msme_strata.substring(0, 1).toUpperCase();
+  return `${sectorCode}${msmeCode}${timestamp}`;
+};
 
 module.exports = mongoose.model('Application', applicationSchema);

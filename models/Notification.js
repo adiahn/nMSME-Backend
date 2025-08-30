@@ -206,6 +206,85 @@ notificationSchema.statics.createDeadlineReminder = function(userId, title, mess
   });
 };
 
+// Static method to create judge assignment notification
+notificationSchema.statics.createJudgeAssignmentNotification = function(judgeId, applicationId, category, priority = 'medium') {
+  return this.create({
+    user_id: judgeId,
+    type: 'judge_assigned',
+    title: 'New Application Assigned',
+    message: `You have been assigned a new application in the ${category} category. Please review and score within the deadline.`,
+    priority: priority,
+    category: 'judging',
+    related_entity: {
+      entity_type: 'application',
+      entity_id: applicationId
+    },
+    action_url: `/judge/assignments/${applicationId}`,
+    metadata: {
+      application_id: applicationId,
+      category: category
+    }
+  });
+};
+
+// Static method to create judge deadline reminder
+notificationSchema.statics.createJudgeDeadlineReminder = function(judgeId, applicationId, category, deadline, priority = 'high') {
+  return this.create({
+    user_id: judgeId,
+    type: 'deadline_reminder',
+    title: 'Application Review Deadline',
+    message: `Reminder: Your review for the ${category} application is due in ${deadline}. Please complete your scoring.`,
+    priority: priority,
+    category: 'deadline',
+    related_entity: {
+      entity_type: 'application',
+      entity_id: applicationId
+    },
+    action_url: `/judge/assignments/${applicationId}`,
+    metadata: {
+      application_id: applicationId,
+      category: category,
+      deadline: deadline
+    }
+  });
+};
+
+// Static method to create judge conflict resolution notification
+notificationSchema.statics.createJudgeConflictNotification = function(judgeId, applicationId, reason, priority = 'medium') {
+  return this.create({
+    user_id: judgeId,
+    type: 'conflict_declared',
+    title: 'Conflict of Interest Declared',
+    message: `Your conflict declaration for application ${applicationId} has been recorded. Reason: ${reason}`,
+    priority: priority,
+    category: 'judging',
+    related_entity: {
+      entity_type: 'application',
+      entity_id: applicationId
+    },
+    metadata: {
+      application_id: applicationId,
+      conflict_reason: reason
+    }
+  });
+};
+
+// Static method to create judge performance notification
+notificationSchema.statics.createJudgePerformanceNotification = function(judgeId, performanceData, priority = 'low') {
+  return this.create({
+    user_id: judgeId,
+    type: 'system_update',
+    title: 'Performance Update',
+    message: `Your judging performance: ${performanceData.completion_rate}% completion rate, ${performanceData.average_score} average score. Keep up the great work!`,
+    priority: priority,
+    category: 'judging',
+    action_url: '/judge/performance-metrics',
+    metadata: {
+      performance_data: performanceData
+    }
+  });
+};
+
 // Method to mark as read
 notificationSchema.methods.markAsRead = async function() {
   if (!this.is_read) {
