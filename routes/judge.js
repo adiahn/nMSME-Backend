@@ -92,7 +92,6 @@ router.get('/applications/available', async (req, res) => {
 
     // Build query for available applications
     const query = {
-      status: 'submitted', // Only submitted applications
       workflow_stage: { $in: ['submitted', 'under_review'] } // Available for review
     };
     
@@ -335,7 +334,7 @@ router.get('/applications/:applicationId', async (req, res) => {
     }
 
     // Check if application is available for review
-    if (application.status !== 'submitted' && application.workflow_stage !== 'submitted') {
+    if (application.workflow_stage !== 'submitted' && application.workflow_stage !== 'under_review') {
       return res.status(400).json({
         success: false,
         error: 'Application is not available for review'
@@ -419,7 +418,7 @@ router.post('/applications/:applicationId/review/start', async (req, res) => {
       });
     }
 
-    if (application.status !== 'submitted' && application.workflow_stage !== 'submitted') {
+    if (application.workflow_stage !== 'submitted' && application.workflow_stage !== 'under_review') {
       return res.status(400).json({
         success: false,
         error: 'Application is not available for review'
@@ -610,10 +609,11 @@ router.get('/applications/pool-stats', async (req, res) => {
       });
     }
 
-    // Get pool statistics
-    const totalApplications = await Application.countDocuments({ status: 'submitted' });
+    // Get pool statistics - Use workflow_stage instead of status
+    const totalApplications = await Application.countDocuments({ 
+      workflow_stage: { $in: ['submitted', 'under_review', 'pre_screening'] }
+    });
     const availableApplications = await Application.countDocuments({ 
-      status: 'submitted',
       workflow_stage: { $in: ['submitted', 'under_review'] }
     });
     const currentlyReviewing = await ApplicationLock.countDocuments({ is_active: true });
@@ -621,7 +621,7 @@ router.get('/applications/pool-stats', async (req, res) => {
 
     // Get category distribution
     const categoryDistribution = await Application.aggregate([
-      { $match: { status: 'submitted' } },
+      { $match: { workflow_stage: { $in: ['submitted', 'under_review', 'pre_screening'] } } },
       { $group: { _id: '$category', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -654,9 +654,11 @@ router.get('/applications/pool-stats', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching pool statistics:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
