@@ -24,13 +24,10 @@ const notFound = require('./middleware/notFound');
 
 const app = express();
 
-// Security middleware
 app.use(helmet());
 
-// CORS configuration - Allow access from localhost:3000 and other origins
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
