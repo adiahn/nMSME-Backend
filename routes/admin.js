@@ -5,12 +5,13 @@ const {
   Score, Notification, SystemSetting, ApplicationTimeline 
 } = require('../models');
 const { protect, authorize } = require('../middleware/auth');
+const { superAdminAuth, adminAuth } = require('../middleware/superAdmin');
 
 const router = express.Router();
 
 // Apply authentication and admin authorization middleware to all routes
 router.use(protect);
-router.use(authorize('admin'));
+router.use(adminAuth); // Allow both admin and super_admin
 
 /**
  * @route   GET /api/admin/dashboard
@@ -172,12 +173,17 @@ router.get('/applications/:id', async (req, res) => {
       .populate('judge_id', 'user_id')
       .populate('judge_id.user_id', 'first_name last_name');
 
+    // Get lock status for this application
+    const { ApplicationLock } = require('../models');
+    const lockStatus = await ApplicationLock.checkLockStatus(application._id);
+
     res.json({
       status: 'success',
       data: {
         application,
         scores,
-        assignments
+        assignments,
+        lock_status: lockStatus
       }
     });
   } catch (error) {
@@ -638,6 +644,163 @@ router.post('/initialize-settings', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/admin/judges/create
+ * @desc    Create a new judge (Super Admin only)
+ * @access  Private (Super Admin only)
+ */
+router.post('/judges/create', superAdminAuth, [
+  body('first_name')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('First name must be between 2 and 50 characters'),
+  body('last_name')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Last name must be between 2 and 50 characters'),
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('phone')
+    .matches(/^(\+234|0)[789][01]\d{8}$/)
+    .withMessage('Please provide a valid Nigerian phone number'),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters long'),
+  body('expertise_sectors')
+    .isArray({ min: 1 })
+    .withMessage('At least one expertise sector is required'),
+  body('expertise_sectors.*')
+    .isIn(['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise'])
+    .withMessage('Invalid expertise sector'),
+  body('professional_credentials.title')
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Title must be between 2 and 100 characters'),
+  body('professional_credentials.institution')
+    .trim()
+    .isLength({ min: 2, max: 200 })
+    .withMessage('Institution must be between 2 and 200 characters'),
+  body('professional_credentials.department')
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Department must be between 2 and 100 characters'),
+  body('professional_credentials.years_of_experience')
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Years of experience must be between 1 and 50'),
+  body('professional_credentials.qualifications')
+    .isArray({ min: 1 })
+    .withMessage('At least one qualification is required'),
+  body('professional_credentials.qualifications.*')
+    .trim()
+    .isLength({ min: 2, max: 200 })
+    .withMessage('Qualification must be between 2 and 200 characters'),
+  body('professional_credentials.areas_of_expertise')
+    .isArray({ min: 1 })
+    .withMessage('At least one area of expertise is required'),
+  body('professional_credentials.areas_of_expertise.*')
+    .trim()
+    .isLength({ min: 2, max: 200 })
+    .withMessage('Area of expertise must be between 2 and 200 characters'),
+  body('availability')
+    .isObject()
+    .withMessage('Availability must be an object'),
+  body('availability.max_applications_per_round')
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Max applications per round must be between 1 and 50'),
+  body('availability.preferred_categories')
+    .isArray()
+    .withMessage('Preferred categories must be an array'),
+  body('availability.preferred_categories.*')
+    .isIn(['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise'])
+    .withMessage('Invalid preferred category')
+], async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { 
+      first_name, 
+      last_name, 
+      email, 
+      phone, 
+      password, 
+      expertise_sectors, 
+      professional_credentials, 
+      availability 
+    } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findByEmailOrPhone(email);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'User already exists with this email or phone number'
+      });
+    }
+
+    // Create judge user
+    const judgeUser = await User.create({
+      first_name,
+      last_name,
+      email,
+      phone,
+      password_hash: password, // Will be hashed by pre-save middleware
+      role: 'judge',
+      is_verified: true,
+      registration_step: 3
+    });
+
+    // Create judge profile
+    const judgeProfile = await Judge.create({
+      user_id: judgeUser._id,
+      expertise_sectors,
+      professional_credentials,
+      availability,
+      is_active: true,
+      created_by: req.user._id
+    });
+
+    // Send welcome email to judge
+    const { sendWelcomeEmail } = require('../utils/emailService');
+    try {
+      await sendWelcomeEmail(judgeUser.email, judgeUser.first_name, 'judge');
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Judge created successfully',
+      data: {
+        user: judgeUser.getPublicProfile(),
+        judge_profile: {
+          id: judgeProfile._id,
+          expertise_sectors: judgeProfile.expertise_sectors,
+          professional_credentials: judgeProfile.professional_credentials,
+          availability: judgeProfile.availability,
+          is_active: judgeProfile.is_active
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Judge creation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error during judge creation'
     });
   }
 });

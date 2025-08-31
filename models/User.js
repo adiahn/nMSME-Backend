@@ -46,7 +46,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['applicant', 'judge', 'admin', 'sponsor', 'public'],
+    enum: ['applicant', 'judge', 'admin', 'super_admin', 'sponsor', 'public'],
     default: 'applicant'
   },
   is_verified: {
