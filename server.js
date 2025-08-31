@@ -26,13 +26,43 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration - Allow access from localhost:3000 and other origins
 app.use(cors({
-  origin: [
-    process.env.APP_URL || 'http://localhost:3000',
-    'https://n-msme-frontend.vercel.app',
-    'http://localhost:3000' // Keep localhost for development
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://n-msme-frontend.vercel.app',
+      process.env.APP_URL
+    ].filter(Boolean); // Remove undefined values
+    
+    console.log('CORS check - Origin:', origin);
+    console.log('Allowed origins:', allowedOrigins);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('CORS allowed for origin:', origin);
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'X-Auth-Token'
   ],
-  credentials: true
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400 // 24 hours
 }));
 
 // Rate limiting
@@ -59,6 +89,12 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
+// Request logging middleware for debugging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'No origin'}`);
+  next();
+});
+
 // Health check endpoints
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -77,6 +113,19 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV
   });
 });
+
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'CORS is working!',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Handle preflight requests for CORS
+app.options('*', cors());
 
 // API routes
 app.use('/api/auth', authRoutes);
