@@ -536,6 +536,130 @@ router.get('/application-stats', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/user/application-status
+ * @desc    Check if user has an application and get its status
+ * @access  Private
+ */
+router.get('/application-status', async (req, res) => {
+  try {
+    console.log('Checking application status for user:', req.user.id);
+    
+    // Import Application model
+    const { Application } = require('../models');
+    
+    // Check if user has any application
+    const application = await Application.findOne({ user_id: req.user.id })
+      .select('_id business_name category workflow_stage createdAt updatedAt documents pitch_video')
+      .lean();
+
+    if (!application) {
+      // User has no application
+      return res.json({
+        success: true,
+        has_application: false,
+        message: 'No application found for this user',
+        data: {
+          can_submit: true,
+          application_count: 0
+        }
+      });
+    }
+
+    // User has an application
+    const applicationStatus = {
+      success: true,
+      has_application: true,
+      message: 'Application found',
+      data: {
+        application_id: application._id,
+        business_name: application.business_name,
+        category: application.category,
+        workflow_stage: application.workflow_stage,
+        created_at: application.createdAt,
+        updated_at: application.updatedAt,
+        documents_count: application.documents ? application.documents.length : 0,
+        has_pitch_video: !!application.pitch_video,
+        can_submit: false, // User already has an application
+        application_count: 1,
+        status_summary: getStatusSummary(application.workflow_stage)
+      }
+    };
+
+    console.log('Application status for user:', {
+      user_id: req.user.id,
+      has_application: true,
+      workflow_stage: application.workflow_stage,
+      business_name: application.business_name
+    });
+
+    res.json(applicationStatus);
+
+  } catch (error) {
+    console.error('Error checking application status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error checking application status',
+      details: error.message
+    });
+  }
+});
+
+// Helper function to provide user-friendly status summary
+function getStatusSummary(workflowStage) {
+  const statusMap = {
+    'submitted': {
+      status: 'Application Submitted',
+      description: 'Your application has been submitted and is under review',
+      color: 'blue',
+      can_edit: true
+    },
+    'pre_screening': {
+      status: 'Under Pre-Screening',
+      description: 'Your application is being verified and screened',
+      color: 'orange',
+      can_edit: false
+    },
+    'under_review': {
+      status: 'Under Review',
+      description: 'Judges are currently reviewing your application',
+      color: 'purple',
+      can_edit: false
+    },
+    'shortlisted': {
+      status: 'Shortlisted',
+      description: 'Congratulations! Your application has been shortlisted',
+      color: 'green',
+      can_edit: false
+    },
+    'finalist': {
+      status: 'Finalist',
+      description: 'You are a finalist! Final selection is in progress',
+      color: 'gold',
+      can_edit: false
+    },
+    'winner': {
+      status: 'Winner',
+      description: 'Congratulations! You are a winner!',
+      color: 'green',
+      can_edit: false
+    },
+    'rejected': {
+      status: 'Application Rejected',
+      description: 'Your application was not selected for this round',
+      color: 'red',
+      can_edit: false
+    }
+  };
+
+  return statusMap[workflowStage] || {
+    status: 'Unknown Status',
+    description: 'Application status is unclear',
+    color: 'gray',
+    can_edit: false
+  };
+}
+
+/**
  * @route   GET /api/user/notifications
  * @desc    Get user's notifications
  * @access  Private
