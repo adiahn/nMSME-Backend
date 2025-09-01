@@ -26,6 +26,9 @@ const app = express();
 
 app.use(helmet());
 
+// Handle CORS preflight requests
+app.options('*', cors());
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
@@ -34,13 +37,20 @@ app.use(cors({
       'http://localhost:3000',
       'http://127.0.0.1:3000',
       'https://n-msme-frontend.vercel.app',
+      'http://kasedaaward.com',
+      'https://kasedaaward.com',
+      'https://kasedaaward.com',
       process.env.APP_URL
     ].filter(Boolean); // Remove undefined values
     
     console.log('CORS check - Origin:', origin);
     console.log('Allowed origins:', allowedOrigins);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Allow kasedaaward.com and its subdomains
+    if (allowedOrigins.indexOf(origin) !== -1 || 
+        origin.includes('kasedaaward.com') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1')) {
       console.log('CORS allowed for origin:', origin);
       callback(null, true);
     } else {
@@ -56,10 +66,15 @@ app.use(cors({
     'Content-Type',
     'Accept',
     'Authorization',
-    'X-Auth-Token'
+    'X-Auth-Token',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Methods',
+    'Access-Control-Allow-Headers'
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 // Rate limiting - Very lenient for development
@@ -111,6 +126,20 @@ const authLimiter = rateLimit({
 
 // Apply auth-specific rate limiting
 app.use('/api/auth/', authLimiter);
+
+// Additional CORS headers for all responses
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Auth-Token');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 
 // Body parsing middleware - exclude multipart form data
 app.use((req, res, next) => {
