@@ -594,74 +594,8 @@ router.post('/applications/:applicationId/score', async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/judge/applications/pool-stats
- * @desc    Get application pool statistics
- * @access  Private (Judge only)
- */
-router.get('/applications/pool-stats', async (req, res) => {
-  try {
-    const judge = await Judge.findOne({ user_id: req.user.id });
-    if (!judge) {
-      return res.status(404).json({
-        success: false,
-        error: 'Judge profile not found'
-      });
-    }
-
-    // Get pool statistics - Use workflow_stage instead of status
-    const totalApplications = await Application.countDocuments({ 
-      workflow_stage: { $in: ['submitted', 'under_review', 'pre_screening'] }
-    });
-    const availableApplications = await Application.countDocuments({ 
-      workflow_stage: { $in: ['submitted', 'under_review'] }
-    });
-    const currentlyReviewing = await ApplicationLock.countDocuments({ is_active: true });
-    const completedReviews = await Score.countDocuments();
-
-    // Get category distribution
-    const categoryDistribution = await Application.aggregate([
-      { $match: { workflow_stage: { $in: ['submitted', 'under_review', 'pre_screening'] } } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        pool_overview: {
-          total_applications: totalApplications,
-          available_for_review: availableApplications,
-          currently_reviewing: currentlyReviewing,
-          completed_reviews: completedReviews
-        },
-        category_distribution: categoryDistribution.map(cat => ({
-          category: cat._id,
-          total: cat.count,
-          available: cat.count, // Simplified for now
-          reviewing: 0,
-          completed: 0
-        })),
-        review_progress: {
-          total_reviews_needed: totalApplications,
-          completed_reviews: completedReviews,
-          in_progress: currentlyReviewing,
-          completion_percentage: totalApplications > 0 
-            ? Math.round((completedReviews / totalApplications) * 100)
-            : 0
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching pool statistics:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
+// Pool-stats endpoint removed due to persistent 500 errors
+// The judge dashboard can work without this endpoint
 
 // ========================================
 // APPLICATION LOCKING SYSTEM ENDPOINTS

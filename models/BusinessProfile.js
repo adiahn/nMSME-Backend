@@ -83,11 +83,7 @@ const businessProfileSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  market_reach: {
-    type: String,
-    required: true,
-    enum: ['local', 'regional', 'national', 'international']
-  },
+
   website: {
     type: String,
     trim: true

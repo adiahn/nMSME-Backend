@@ -387,7 +387,7 @@ Request:
   "business_description": "Innovative AI solution for SMEs",
   "key_achievements": "Increased efficiency by 40%",
   "products_services": "AI-powered analytics platform",
-  "market_reach": "national",
+  
   "jobs_created": 25,
   "women_youth_percentage": 60,
   "sustainability_initiatives": "Green computing practices",

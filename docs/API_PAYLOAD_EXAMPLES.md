@@ -62,7 +62,7 @@
   "message": "Application created successfully",
   "data": {
     "application_id": "64f8a1b2c3d4e5f6a7b8c9d0",
-    "workflow_stage": "draft"
+    "workflow_stage": "submitted"
   }
 }
 ```
@@ -147,7 +147,7 @@ other_documents: [File1, File2] // Other supporting documents (PDF/DOC/DOCX) - U
   "message": "Application created successfully with documents",
   "data": {
     "application_id": "64f8a1b2c3d4e5f6a7b8c9d0",
-    "workflow_stage": "draft",
+    "workflow_stage": "submitted",
     "documents_uploaded": 6,
     "total_documents": 6
   }

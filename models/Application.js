@@ -196,7 +196,7 @@ const applicationSchema = new mongoose.Schema({
   business_description: {
     type: String,
     required: true,
-    maxlength: 500
+    maxlength: 1000
   },
   website: {
     type: String,
@@ -227,16 +227,15 @@ const applicationSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      'draft',           // Stage 1: Registration & Profile Setup
-      'submitted',       // Stage 2: Application Form completed
-      'pre_screening',   // Stage 3: Pre-Screening & Verification
-      'under_review',    // Stage 4: Judging
-      'shortlisted',     // Stage 5: Shortlisting
-      'finalist',        // Stage 6: Winner Selection
+      'submitted',       // Stage 1: Application Form completed and submitted
+      'pre_screening',   // Stage 2: Pre-Screening & Verification
+      'under_review',    // Stage 3: Judging
+      'shortlisted',     // Stage 4: Shortlisting
+      'finalist',        // Stage 5: Winner Selection
       'winner',          // Final winner
       'rejected'         // Rejected at any stage
     ],
-    default: 'draft'
+    default: 'submitted'
   },
   // Application form fields from PRD
   key_achievements: {
@@ -248,12 +247,7 @@ const applicationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  // Market reach information
-  market_reach: {
-    type: String,
-    required: true,
-    maxlength: 200
-  },
+
   // Impact metrics from PRD
   jobs_created: {
     type: Number,
@@ -290,7 +284,7 @@ const applicationSchema = new mongoose.Schema({
   pitch_video: {
     url: {
       type: String,
-      required: false // Make optional during creation
+      required: true
     },
     is_youtube_link: {
       type: Boolean,
@@ -361,6 +355,8 @@ const applicationSchema = new mongoose.Schema({
 // Indexes for efficient queries
 applicationSchema.index({ user_id: 1 });
 applicationSchema.index({ category: 1 });
+// Unique index to ensure one application per user total
+applicationSchema.index({ user_id: 1 }, { unique: true });
 applicationSchema.index({ sector: 1 });
 applicationSchema.index({ msme_strata: 1 });
 applicationSchema.index({ workflow_stage: 1 });
@@ -414,8 +410,8 @@ applicationSchema.methods.validateRequiredDocuments = function() {
   return requiredDocs;
 };
 
-// Method to check if application is complete for submission
-applicationSchema.methods.isCompleteForSubmission = function() {
+// Method to check if application is complete (for validation purposes)
+applicationSchema.methods.isComplete = function() {
   const requiredDocs = this.validateRequiredDocuments();
   const hasAllRequiredDocs = Object.values(requiredDocs).every(Boolean);
   
@@ -423,7 +419,6 @@ applicationSchema.methods.isCompleteForSubmission = function() {
     this.business_description &&
     this.key_achievements &&
     this.products_services_description &&
-    this.market_reach &&
     this.jobs_created !== undefined &&
     this.women_youth_percentage !== undefined &&
     this.export_activity.has_exports !== undefined &&
@@ -441,16 +436,15 @@ applicationSchema.pre('save', function(next) {
   next();
 });
 
-// Method to get anonymized application data for judges (first round)
-applicationSchema.methods.getAnonymizedData = function() {
-  return {
-    _id: this._id,
-    category: this.sector,
-    business_description: this.business_description,
-    key_achievements: this.key_achievements,
-    products_services_description: this.products_services_description,
-    market_reach: this.market_reach,
-    jobs_created: this.jobs_created,
+  // Method to get anonymized application data for judges (first round)
+  applicationSchema.methods.getAnonymizedData = function() {
+    return {
+      _id: this._id,
+      category: this.sector,
+      business_description: this.business_description,
+      key_achievements: this.key_achievements,
+      products_services_description: this.products_services_description,
+      jobs_created: this.jobs_created,
     women_youth_percentage: this.women_youth_percentage,
     export_activity: this.export_activity,
     sustainability_initiatives: this.sustainability_initiatives,
@@ -471,17 +465,16 @@ applicationSchema.methods.getAnonymizedData = function() {
   };
 };
 
-// Method to get partially anonymized data (final round - judges can see business names)
-applicationSchema.methods.getPartiallyAnonymizedData = function() {
-  return {
-    _id: this._id,
-    business_name: this.business_name,
-    category: this.sector,
-    business_description: this.business_description,
-    key_achievements: this.key_achievements,
-    products_services_description: this.products_services_description,
-    market_reach: this.market_reach,
-    jobs_created: this.jobs_created,
+  // Method to get partially anonymized data (final round - judges can see business names)
+  applicationSchema.methods.getPartiallyAnonymizedData = function() {
+    return {
+      _id: this._id,
+      business_name: this.business_name,
+      category: this.sector,
+      business_description: this.business_description,
+      key_achievements: this.key_achievements,
+      products_services_description: this.products_services_description,
+      jobs_created: this.jobs_created,
     women_youth_percentage: this.women_youth_percentage,
     export_activity: this.export_activity,
     sustainability_initiatives: this.sustainability_initiatives,

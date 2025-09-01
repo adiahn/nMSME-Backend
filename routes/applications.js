@@ -40,248 +40,93 @@ const upload = multer({
   }
 });
 
-// @desc    Create new application with documents (comprehensive)
-// @route   POST /api/applications/complete
+// @desc    Get all applications for the authenticated user
+// @route   GET /api/applications
 // @access  Private
-router.post('/complete', [
-  protect,
-  upload.fields([
-    { name: 'cac_certificate', maxCount: 1 },
-    { name: 'tax_identification', maxCount: 1 },
-    { name: 'product_photos', maxCount: 5 },
-    { name: 'business_plan', maxCount: 1 },
-    { name: 'financial_statements', maxCount: 1 },
-    { name: 'other_documents', maxCount: 3 }
-  ]),
-  // Business details validation
-  body('business_name')
-    .trim()
-    .notEmpty()
-    .withMessage('Business name is required'),
-  body('cac_number')
-    .trim()
-    .notEmpty()
-    .withMessage('CAC number is required'),
-  body('sector')
-    .isIn([
-      'Fashion',
-      'Information Technology (IT)',
-      'Agribusiness',
-      'Food & Beverage',
-      'Light Manufacturing',
-      'Creative Enterprise',
-      'Emerging Enterprise Award'
-    ])
-    .withMessage('Valid sector is required'),
-  body('msme_strata')
-    .isIn(['nano', 'micro', 'small', 'medium'])
-    .withMessage('Valid MSME strata is required'),
-  body('location.state')
-    .notEmpty()
-    .withMessage('State is required'),
-  body('location.lga')
-    .notEmpty()
-    .withMessage('LGA is required'),
-  body('year_established')
-    .isInt({ min: 1900, max: new Date().getFullYear() + 1 })
-    .withMessage('Valid year established is required'),
-  body('employee_count')
-    .isInt({ min: 1 })
-    .withMessage('Employee count must be at least 1'),
-  body('revenue_band')
-    .custom((value) => {
-      const validBands = [
-        'Less than ₦100,000/month',
-        '₦100,000 - ₦500,000/month',
-        '₦500,000 - ₦1,000,000/month',
-        '₦1,000,000 - ₦5,000,000/month',
-        '₦5,000,000 - ₦10,000,000/month',
-        'Above ₦10,000,000/month',
-        // Allow Korean Won versions for now
-        'Less than ₩100,000/month',
-        '₩100,000 - ₩500,000/month',
-        '₩500,000 - ₩1,000,000/month',
-        '₩1,000,000 - ₩5,000,000/month',
-        '₩5,000,000 - ₩10,000,000/month',
-        'Above ₩10,000,000/month'
-      ];
-      return validBands.includes(value);
-    })
-    .withMessage('Valid revenue band is required'),
-  body('business_description')
-    .isLength({ min: 10, max: 500 })
-    .withMessage('Business description must be between 10 and 500 characters'),
-  // Application details validation
-  body('category')
-    .isIn([
-      'Fashion',
-      'Information Technology (IT)',
-      'Agribusiness',
-      'Food & Beverage',
-      'Light Manufacturing',
-      'Creative Enterprise',
-      'Emerging Enterprise Award'
-    ])
-    .withMessage('Valid category is required'),
-  body('key_achievements')
-    .isLength({ min: 10, max: 300 })
-    .withMessage('Key achievements must be between 10 and 300 characters'),
-  body('products_services_description')
-    .notEmpty()
-    .withMessage('Products/services description is required'),
-  body('jobs_created')
-    .isInt({ min: 0 })
-    .withMessage('Jobs created must be a non-negative number'),
-  body('women_youth_percentage')
-    .isFloat({ min: 0, max: 100 })
-    .withMessage('Women/youth percentage must be between 0 and 100'),
-  body('export_activity.has_exports')
-    .isBoolean()
-    .withMessage('Export activity status is required'),
-  body('sustainability_initiatives.has_initiatives')
-    .isBoolean()
-    .withMessage('Sustainability initiatives status is required'),
-  body('award_usage_plans')
-    .notEmpty()
-    .withMessage('Award usage plans are required'),
-  // Video pitch validation
-  body('pitch_video.url')
-    .isURL()
-    .withMessage('Valid video URL is required'),
-  body('pitch_video.platform')
-    .isIn(['youtube', 'vimeo'])
-    .withMessage('Platform must be either youtube or vimeo')
-], async (req, res) => {
+router.get('/', protect, async (req, res) => {
   try {
-    console.log('Received complete application data:', JSON.stringify(req.body, null, 2));
-    console.log('Received files:', req.files);
+    console.log('Fetching applications for user:', req.user.id);
     
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        error: errors.array()[0].msg
-      });
-    }
+    const { 
+      page = 1, 
+      limit = 10, 
+      status, 
+      category, 
+      sort = '-created_at' 
+    } = req.query;
 
-    const {
-      // Business details
-      business_name,
-      cac_number,
-      sector,
-      msme_strata,
-      location,
-      year_established,
-      employee_count,
-      revenue_band,
-      business_description,
-      website,
-      social_media,
-      // Application details
-      category,
-      key_achievements,
-      products_services_description,
-      jobs_created,
-      women_youth_percentage,
-      export_activity,
-      sustainability_initiatives,
-      award_usage_plans,
-      // Video pitch
-      pitch_video
-    } = req.body;
+    const query = { user_id: req.user.id };
+    
+    if (status) query.workflow_stage = status;
+    if (category) query.category = category;
 
-    // Check if user already has an application in this category
-    const existingApplication = await Application.findOne({
-      user_id: req.user.id,
-      category: category
-    });
+    console.log('Query:', query);
 
-    if (existingApplication) {
-      return res.status(400).json({
-        success: false,
-        error: 'You already have an application in this category'
-      });
-    }
+    const applications = await Application.find(query)
+      .populate('business_profile_id', 'company_name registration_number year_established employee_count annual_revenue')
+      .sort(sort)
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
 
-    // Process uploaded documents
-    const documents = [];
-    if (req.files) {
-      for (const [fieldName, files] of Object.entries(req.files)) {
-        for (const file of files) {
-          const document = {
-            filename: file.filename,
-            original_name: file.originalname,
-            url: file.path,
-            cloudinary_id: file.filename,
-            document_type: fieldName,
-            size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date()
-          };
-          documents.push(document);
+    const total = await Application.countDocuments(query);
+
+    console.log(`Found ${applications.length} applications out of ${total} total`);
+
+    res.json({
+      success: true,
+      data: {
+        applications,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(total / parseInt(limit)),
+          total_items: total,
+          items_per_page: parseInt(limit)
         }
       }
-    }
-
-    // Create application with all business details and documents included
-    const application = new Application({
-      user_id: req.user.id,
-      // Business details
-      business_name,
-      cac_number,
-      sector,
-      msme_strata,
-      location,
-      year_established,
-      employee_count,
-      revenue_band,
-      business_description,
-      website,
-      social_media: social_media || {}, // Handle empty string case
-      // Application details
-      category,
-      workflow_stage: 'draft',
-      key_achievements,
-      products_services_description,
-      jobs_created,
-      women_youth_percentage,
-      export_activity,
-      sustainability_initiatives,
-      award_usage_plans,
-      // Video pitch
-      pitch_video,
-      // Documents
-      documents: documents
     });
-
-    await application.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Application created successfully with documents',
-      data: {
-        application_id: application._id,
-        workflow_stage: application.workflow_stage,
-        documents_uploaded: documents.length,
-        total_documents: application.documents.length
-      }
-    });
-
   } catch (error) {
-    console.error('Create complete application error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    
-    // If application was created but documents failed, we should clean up
-    // This is a simplified version - in production you might want more sophisticated rollback
-    
+    console.error('Error fetching applications:', error);
     res.status(500).json({
       success: false,
-      error: 'Error creating application with documents',
+      error: 'Internal server error',
       details: error.message
+    });
+  }
+});
+
+// @desc    Get specific application by ID
+// @route   GET /api/applications/:id
+// @access  Private
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const application = await Application.findById(req.params.id)
+      .populate('user_id', 'first_name last_name email phone')
+      .populate('business_profile_id', 'company_name registration_number year_established employee_count annual_revenue location');
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    // Check if user owns this application
+    if (application.user_id.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: application
+    });
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
     });
   }
 });
@@ -347,48 +192,24 @@ router.post('/', [
     })
     .withMessage('Valid revenue band is required'),
   body('business_description')
-    .isLength({ min: 10, max: 500 })
-    .withMessage('Business description must be between 10 and 500 characters'),
-  // Application details validation
+    .isLength({ min: 10, max: 1000 })
+    .withMessage('Business description must be between 10 and 1000 characters'),
   body('category')
-    .isIn([
-      'Fashion',
-      'Information Technology (IT)',
-      'Agribusiness',
-      'Food & Beverage',
-      'Light Manufacturing',
-      'Creative Enterprise',
-      'Emerging Enterprise Award'
-    ])
+    .isIn(['Fashion', 'Information Technology (IT)', 'Agribusiness', 'Food & Beverage', 'Light Manufacturing', 'Creative Enterprise', 'Emerging Enterprise Award'])
     .withMessage('Valid category is required'),
-  body('key_achievements')
-    .isLength({ min: 10, max: 300 })
-    .withMessage('Key achievements must be between 10 and 300 characters'),
-  body('products_services_description')
+  body('pitch_video.url')
     .notEmpty()
-    .withMessage('Products/services description is required'),
-  body('jobs_created')
-    .isInt({ min: 0 })
-    .withMessage('Jobs created must be a non-negative number'),
-  body('women_youth_percentage')
-    .isFloat({ min: 0, max: 100 })
-    .withMessage('Women/youth percentage must be between 0 and 100'),
+    .withMessage('Valid video URL is required'),
+  body('pitch_video.platform')
+    .isIn(['youtube', 'vimeo'])
+    .withMessage('Platform must be either youtube or vimeo'),
   body('export_activity.has_exports')
     .isBoolean()
     .withMessage('Export activity status is required'),
   body('sustainability_initiatives.has_initiatives')
     .isBoolean()
     .withMessage('Sustainability initiatives status is required'),
-  body('award_usage_plans')
-    .notEmpty()
-    .withMessage('Award usage plans are required'),
-  // Video pitch validation
-  body('pitch_video.url')
-    .isURL()
-    .withMessage('Valid video URL is required'),
-  body('pitch_video.platform')
-    .isIn(['youtube', 'vimeo'])
-    .withMessage('Platform must be either youtube or vimeo')
+
 ], async (req, res) => {
   try {
     console.log('Received application data:', JSON.stringify(req.body, null, 2));
@@ -426,16 +247,27 @@ router.post('/', [
       pitch_video
     } = req.body;
 
-    // Check if user already has an application in this category
+    // Check if user already has any application (one application per user total)
     const existingApplication = await Application.findOne({
-      user_id: req.user.id,
-      category: category
+      user_id: req.user.id
     });
 
     if (existingApplication) {
+      console.log('Duplicate application attempt blocked:', {
+        user_id: req.user.id,
+        existing_app_id: existingApplication._id,
+        existing_stage: existingApplication.workflow_stage,
+        existing_category: existingApplication.category
+      });
+      
       return res.status(400).json({
         success: false,
-        error: 'You already have an application in this category'
+        error: 'You already have an application. Each user can only submit one application.',
+        details: {
+          existing_application_id: existingApplication._id,
+          workflow_stage: existingApplication.workflow_stage,
+          category: existingApplication.category
+        }
       });
     }
 
@@ -456,7 +288,7 @@ router.post('/', [
       social_media: social_media || {}, // Handle empty string case
       // Application details
       category,
-      workflow_stage: 'draft',
+      workflow_stage: 'submitted',
       key_achievements,
       products_services_description,
       jobs_created,
@@ -469,10 +301,17 @@ router.post('/', [
     });
 
     await application.save();
+    
+    console.log('Application submitted successfully:', {
+      id: application._id,
+      business_name: application.business_name,
+      category: application.category,
+      workflow_stage: application.workflow_stage
+    });
 
     res.status(201).json({
       success: true,
-      message: 'Application created successfully',
+      message: 'Application submitted successfully',
       data: {
         application_id: application._id,
         workflow_stage: application.workflow_stage
@@ -494,150 +333,301 @@ router.post('/', [
   }
 });
 
-// @desc    Submit application (move from draft to submitted)
-// @route   POST /api/applications/:id/submit
+
+
+// @desc    Complete application submission with files (multipart/form-data)
+// @route   POST /api/applications/complete
 // @access  Private
-router.post('/:id/submit', protect, async (req, res) => {
+router.post('/complete', protect, upload.fields([
+  { name: 'cac_certificate', maxCount: 1 },
+  { name: 'product_photos', maxCount: 5 },
+  { name: 'business_plan', maxCount: 1 },
+  { name: 'financial_statements', maxCount: 1 },
+  { name: 'tax_clearance', maxCount: 1 },
+  { name: 'insurance_certificate', maxCount: 1 },
+  { name: 'quality_certification', maxCount: 1 },
+  { name: 'export_license', maxCount: 1 }
+]), async (req, res) => {
   try {
-    const application = await Application.findOne({
-      _id: req.params.id,
+    console.log('Received complete application data:', {
+      body: req.body,
+      files: req.files
+    });
+    
+    // Log received data for debugging
+    console.log('All body fields:', Object.keys(req.body));
+    console.log('Body values:', Object.entries(req.body).map(([k, v]) => {
+      try {
+        if (typeof v === 'object' && v !== null) {
+          return `${k}: [Object]`;
+        }
+        return `${k}: ${v}`;
+      } catch (error) {
+        return `${k}: [Error: ${error.message}]`;
+      }
+    }));
+
+    // Parse nested objects from form data
+    const parseNestedData = (data) => {
+      const result = {};
+      for (const [key, value] of Object.entries(data)) {
+        try {
+          if (key.includes('[') && key.includes(']')) {
+            // Handle bracket notation like 'location[state]'
+            const match = key.match(/^(\w+)\[(\w+)\]$/);
+            if (match) {
+              const [, parentKey, childKey] = match;
+              if (!result[parentKey]) result[parentKey] = {};
+              result[parentKey][childKey] = value;
+            }
+          } else {
+            // Handle case where value might be a stringified JSON object
+            if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+              try {
+                const parsedValue = JSON.parse(value);
+                // Only use parsed value if it's not already handled by bracket notation
+                if (!result[key] || Object.keys(result[key]).length === 0) {
+                  result[key] = parsedValue;
+                }
+              } catch (parseError) {
+                // If JSON parsing fails, use the original string value
+                result[key] = value;
+              }
+            } else {
+              result[key] = value;
+            }
+          }
+        } catch (error) {
+          console.log(`Error parsing field ${key}:`, error.message);
+          result[key] = value; // Fallback to original value
+        }
+      }
+      return result;
+    };
+
+    const parsedData = parseNestedData(req.body);
+    console.log('Parsed data:', parsedData);
+
+    // Validate required fields
+    const requiredFields = [
+      'business_name', 'cac_number', 'sector', 'msme_strata', 
+      'location', 'year_established', 'employee_count', 'revenue_band',
+      'business_description', 'category', 'export_activity', 'sustainability_initiatives'
+    ];
+
+    // Special validation for pitch_video (can be object or string)
+    let pitchVideoValid = false;
+    if (parsedData.pitch_video) {
+      if (typeof parsedData.pitch_video === 'string') {
+        // Handle stringified JSON
+        try {
+          const parsedVideo = JSON.parse(parsedData.pitch_video);
+          pitchVideoValid = parsedVideo && parsedVideo.url && parsedVideo.url.trim() !== '';
+        } catch (parseError) {
+          // If not JSON, check if it's a direct URL string
+          pitchVideoValid = parsedData.pitch_video.trim() !== '';
+        }
+      } else if (typeof parsedData.pitch_video === 'object') {
+        // Handle object format
+        pitchVideoValid = parsedData.pitch_video.url && parsedData.pitch_video.url.trim() !== '';
+      }
+    }
+    
+    if (!pitchVideoValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'pitch_video is required and must have a valid URL',
+        details: 'Received pitch_video data: ' + JSON.stringify(parsedData.pitch_video)
+      });
+    }
+
+    // Validate required boolean fields
+    if (!parsedData.export_activity || 
+        (typeof parsedData.export_activity.has_exports !== 'boolean' && 
+         typeof parsedData.export_activity.has_exports !== 'string')) {
+      return res.status(400).json({
+        success: false,
+        error: 'export_activity.has_exports is required and must be a boolean value'
+      });
+    }
+
+    if (!parsedData.sustainability_initiatives || 
+        (typeof parsedData.sustainability_initiatives.has_initiatives !== 'boolean' && 
+         typeof parsedData.sustainability_initiatives.has_initiatives !== 'string')) {
+      return res.status(400).json({
+        success: false,
+        error: 'sustainability_initiatives.has_initiatives is required and must be a boolean value'
+      });
+    }
+
+    for (const field of requiredFields) {
+      console.log(`Validating ${field}:`, parsedData[field]);
+      
+      // Handle different field types properly
+      let isValid = false;
+      if (field === 'location') {
+        // Location is an object, check if it has required properties
+        isValid = parsedData[field] && 
+                  parsedData[field].state && 
+                  parsedData[field].state.toString().trim() !== '' &&
+                  parsedData[field].lga && 
+                  parsedData[field].lga.toString().trim() !== '';
+      } else if (field === 'export_activity') {
+        // Export activity is an object, already validated above
+        isValid = true;
+      } else if (field === 'sustainability_initiatives') {
+        // Sustainability initiatives is an object, already validated above
+        isValid = true;
+      } else {
+        // Regular string fields
+        isValid = parsedData[field] && parsedData[field].toString().trim() !== '';
+      }
+      
+      if (!isValid) {
+        console.log(`Field ${field} validation failed:`, parsedData[field]);
+        return res.status(400).json({
+          success: false,
+          error: `${field} is required and cannot be empty`,
+          details: `Field '${field}' was received as: ${JSON.stringify(parsedData[field])}`
+        });
+      }
+    }
+
+    // Check if user already has any application (one application per user total)
+    const existingApplication = await Application.findOne({
       user_id: req.user.id
     });
 
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        error: 'Application not found'
+    if (existingApplication) {
+      console.log('Duplicate application attempt blocked (complete endpoint):', {
+        user_id: req.user.id,
+        existing_app_id: existingApplication._id,
+        existing_stage: existingApplication.workflow_stage,
+        existing_category: existingApplication.category
       });
-    }
-
-    if (application.workflow_stage !== 'draft') {
+      
       return res.status(400).json({
         success: false,
-        error: 'Application can only be submitted from draft stage'
-      });
-    }
-
-    // Validate application completeness
-    if (!application.isCompleteForSubmission()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Application is incomplete. Please ensure all required fields and documents are provided.',
-        missing_requirements: {
-          required_documents: application.validateRequiredDocuments(),
-          has_required_fields: !!(
-            application.business_overview &&
-            application.key_achievements &&
-            application.products_services_description &&
-            application.market_reach &&
-            application.jobs_created !== undefined &&
-            application.women_youth_percentage !== undefined &&
-            application.export_activity.has_exports !== undefined &&
-            application.sustainability_initiatives.has_initiatives !== undefined &&
-            application.award_usage_plans
-          )
+        error: 'You already have an application. Each user can only submit one application.',
+        details: {
+          existing_application_id: existingApplication._id,
+          workflow_stage: existingApplication.workflow_stage,
+          category: existingApplication.category
         }
       });
     }
 
-    // Update workflow stage
-    application.workflow_stage = 'submitted';
-    application.submission_date = new Date();
+    // Process uploaded files
+    const documents = [];
+    if (req.files) {
+      for (const [fieldName, files] of Object.entries(req.files)) {
+        for (const file of files) {
+          // Handle Cloudinary response properly
+          const documentData = {
+            filename: file.originalname || fieldName,
+            original_name: file.originalname || fieldName,
+            url: file.path || file.secure_url,
+            cloudinary_id: file.filename || file.public_id,
+            document_type: fieldName,
+            size: file.size || 0,
+            mime_type: file.mimetype || 'application/octet-stream',
+            uploaded_at: new Date()
+          };
+          
+          // Only add required fields that exist
+          if (documentData.url) {
+            documents.push(documentData);
+          }
+        }
+      }
+    }
+
+    // Create application
+    const application = new Application({
+      user_id: req.user.id,
+      // Business details
+      business_name: parsedData.business_name,
+      cac_number: parsedData.cac_number,
+      sector: parsedData.sector,
+      msme_strata: parsedData.msme_strata,
+      location: parsedData.location,
+      year_established: parseInt(parsedData.year_established),
+      employee_count: parseInt(parsedData.employee_count),
+      revenue_band: parsedData.revenue_band,
+      business_description: parsedData.business_description,
+      website: parsedData.website,
+      social_media: parsedData.social_media || {},
+      // Application details
+      category: parsedData.category,
+      workflow_stage: 'submitted', // Application is submitted immediately
+      key_achievements: parsedData.key_achievements,
+      products_services_description: parsedData.products_services_description,
+
+      jobs_created: parseInt(parsedData.jobs_created) || 0,
+      women_youth_percentage: parseInt(parsedData.women_youth_percentage) || 0,
+      export_activity: {
+        has_exports: parsedData.export_activity.has_exports === 'true' || parsedData.export_activity.has_exports === true,
+        export_details: parsedData.export_activity.export_details || ''
+      },
+      sustainability_initiatives: {
+        has_initiatives: parsedData.sustainability_initiatives.has_initiatives === 'true' || parsedData.sustainability_initiatives.has_initiatives === true,
+        initiative_details: parsedData.sustainability_initiatives.initiative_details || ''
+      },
+      award_usage_plans: parsedData.award_usage_plans,
+      // Video pitch - handle both object and stringified JSON
+      pitch_video: (() => {
+        if (typeof parsedData.pitch_video === 'string' && parsedData.pitch_video.startsWith('{')) {
+          try {
+            return JSON.parse(parsedData.pitch_video);
+          } catch (error) {
+            console.log('Error parsing pitch_video JSON:', error.message);
+            return parsedData.pitch_video;
+          }
+        }
+        return parsedData.pitch_video;
+      })(),
+      // Documents
+      documents: documents
+    });
+
     await application.save();
 
-    res.json({
+    res.status(201).json({
       success: true,
-      message: 'Application submitted successfully',
+      message: 'Application submitted successfully with documents',
       data: {
         application_id: application._id,
         workflow_stage: application.workflow_stage,
-        submission_date: application.submission_date
+        documents_uploaded: documents.length,
+        total_documents: documents.length
       }
     });
 
   } catch (error) {
-    console.error('Submit application error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error submitting application'
+    console.error('Complete application submission error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code
     });
-  }
-});
-
-// @desc    Get user's applications
-// @route   GET /api/applications
-// @access  Private
-router.get('/', protect, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, category, workflow_stage } = req.query;
-
-    const query = { user_id: req.user.id };
     
-    if (category) {
-      query.category = category;
+    // Provide more specific error messages
+    let errorMessage = 'Error creating application';
+    let errorDetails = error.message;
+    
+    if (error.name === 'ValidationError') {
+      errorMessage = 'Validation error';
+      errorDetails = Object.values(error.errors).map(err => err.message).join(', ');
+    } else if (error.code === 11000) {
+      errorMessage = 'Duplicate application error';
+      errorDetails = 'You already have an application';
     }
     
-    if (workflow_stage) {
-      query.workflow_stage = workflow_stage;
-    }
-
-    const applications = await Application.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .exec();
-
-    const total = await Application.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: {
-        applications,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(total / limit),
-          total_items: total,
-          items_per_page: parseInt(limit)
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Get applications error:', error);
     res.status(500).json({
       success: false,
-      error: 'Error fetching applications'
-    });
-  }
-});
-
-// @desc    Get specific application
-// @route   GET /api/applications/:id
-// @access  Private
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const application = await Application.findOne({
-      _id: req.params.id,
-      user_id: req.user.id
-    });
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        error: 'Application not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: application
-    });
-
-  } catch (error) {
-    console.error('Get application error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error fetching application'
+      error: errorMessage,
+      details: errorDetails
     });
   }
 });
@@ -645,101 +635,9 @@ router.get('/:id', protect, async (req, res) => {
 // @desc    Update application
 // @route   PUT /api/applications/:id
 // @access  Private
-router.put('/:id', [
-  protect,
-  // Business details validation (optional for updates)
-  body('business_name')
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage('Business name cannot be empty'),
-  body('cac_number')
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage('CAC number cannot be empty'),
-  body('sector')
-    .optional()
-    .isIn([
-      'Fashion',
-      'Information Technology (IT)',
-      'Agribusiness',
-      'Food & Beverage',
-      'Light Manufacturing',
-      'Creative Enterprise',
-      'Emerging Enterprise Award'
-    ])
-    .withMessage('Valid sector is required'),
-  body('msme_strata')
-    .optional()
-    .isIn(['nano', 'micro', 'small', 'medium'])
-    .withMessage('Valid MSME strata is required'),
-  body('location.state')
-    .optional()
-    .notEmpty()
-    .withMessage('State cannot be empty'),
-  body('location.lga')
-    .optional()
-    .notEmpty()
-    .withMessage('LGA cannot be empty'),
-  body('year_established')
-    .optional()
-    .isInt({ min: 1900, max: new Date().getFullYear() })
-    .withMessage('Valid year established is required'),
-  body('employee_count')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Employee count must be at least 1'),
-  body('revenue_band')
-    .optional()
-    .isIn([
-      'Less than ₦100,000/month',
-      '₦100,000 - ₦500,000/month',
-      '₦500,000 - ₦1,000,000/month',
-      '₦1,000,000 - ₦5,000,000/month',
-      '₦5,000,000 - ₦10,000,000/month',
-      'Above ₦10,000,000/month'
-    ])
-    .withMessage('Valid revenue band is required'),
-  body('business_description')
-    .optional()
-    .isLength({ min: 10, max: 500 })
-    .withMessage('Business description must be between 10 and 500 characters'),
-  // Application details validation (optional for updates)
-  body('key_achievements')
-    .optional()
-    .isLength({ min: 10, max: 300 })
-    .withMessage('Key achievements must be between 10 and 300 characters'),
-  body('products_services_description')
-    .optional()
-    .notEmpty()
-    .withMessage('Products/services description cannot be empty'),
-  body('jobs_created')
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage('Jobs created must be a non-negative number'),
-  body('women_youth_percentage')
-    .optional()
-    .isFloat({ min: 0, max: 100 })
-    .withMessage('Women/youth percentage must be between 0 and 100'),
-  body('award_usage_plans')
-    .optional()
-    .notEmpty()
-    .withMessage('Award usage plans cannot be empty')
-], async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        error: errors.array()[0].msg
-      });
-    }
-
-    const application = await Application.findOne({
-      _id: req.params.id,
-      user_id: req.user.id
-    });
+    const application = await Application.findById(req.params.id);
 
     if (!application) {
       return res.status(404).json({
@@ -748,39 +646,33 @@ router.put('/:id', [
       });
     }
 
-    // Only allow updates if application is in draft stage
-    if (application.workflow_stage !== 'draft') {
-      return res.status(400).json({
+    // Check if user owns this application
+    if (application.user_id.toString() !== req.user.id) {
+      return res.status(403).json({
         success: false,
-        error: 'Application can only be updated in draft stage'
+        error: 'Access denied'
       });
     }
 
-    // Update allowed fields
-    const allowedFields = [
-      'business_overview',
-      'key_achievements',
-      'products_services_description',
-      'market_reach',
-      'jobs_created',
-      'women_youth_percentage',
-      'export_activity',
-      'sustainability_initiatives',
-      'award_usage_plans'
-    ];
+    // Check if application can be updated
+    if (application.workflow_stage === 'submitted' || application.workflow_stage === 'under_review') {
+      return res.status(400).json({
+        success: false,
+        error: 'Application cannot be updated after submission'
+      });
+    }
 
-    allowedFields.forEach(field => {
-      if (req.body[field] !== undefined) {
-        application[field] = req.body[field];
-      }
-    });
-
-    await application.save();
+    // Update application
+    const updatedApplication = await Application.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
 
     res.json({
       success: true,
       message: 'Application updated successfully',
-      data: application
+      data: updatedApplication
     });
 
   } catch (error) {
@@ -797,10 +689,7 @@ router.put('/:id', [
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const application = await Application.findOne({
-      _id: req.params.id,
-      user_id: req.user.id
-    });
+    const application = await Application.findById(req.params.id);
 
     if (!application) {
       return res.status(404).json({
@@ -809,11 +698,19 @@ router.delete('/:id', protect, async (req, res) => {
       });
     }
 
-    // Only allow deletion if application is in draft stage
-    if (application.workflow_stage !== 'draft') {
+    // Check if user owns this application
+    if (application.user_id.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    // Check if application can be deleted
+    if (application.workflow_stage === 'submitted' || application.workflow_stage === 'under_review') {
       return res.status(400).json({
         success: false,
-        error: 'Application can only be deleted in draft stage'
+        error: 'Application cannot be deleted after submission'
       });
     }
 
@@ -833,138 +730,6 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Get application timeline
-// @route   GET /api/applications/:id/timeline
-// @access  Private
-router.get('/:id/timeline', protect, async (req, res) => {
-  try {
-    const application = await Application.findOne({
-      _id: req.params.id,
-      user_id: req.user.id
-    });
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        error: 'Application not found'
-      });
-    }
-
-    const timeline = [
-      {
-        stage: 'draft',
-        title: 'Application Draft',
-        description: 'Application created and saved as draft',
-        date: application.createdAt,
-        completed: true
-      },
-      {
-        stage: 'submitted',
-        title: 'Application Submitted',
-        description: 'Application submitted for review',
-        date: application.submission_date,
-        completed: application.workflow_stage !== 'draft'
-      },
-      {
-        stage: 'pre_screening',
-        title: 'Pre-Screening',
-        description: 'Application under pre-screening and verification',
-        date: application.pre_screening?.checked_at,
-        completed: ['pre_screening', 'under_review', 'shortlisted', 'finalist', 'winner'].includes(application.workflow_stage)
-      },
-      {
-        stage: 'under_review',
-        title: 'Under Review',
-        description: 'Application being reviewed by judges',
-        date: application.review_start_date,
-        completed: ['under_review', 'shortlisted', 'finalist', 'winner'].includes(application.workflow_stage)
-      },
-      {
-        stage: 'shortlisted',
-        title: 'Shortlisted',
-        description: 'Application shortlisted for final consideration',
-        date: application.shortlist_date,
-        completed: ['shortlisted', 'finalist', 'winner'].includes(application.workflow_stage)
-      },
-      {
-        stage: 'finalist',
-        title: 'Finalist',
-        description: 'Application selected as finalist',
-        date: application.review_completion_date,
-        completed: ['finalist', 'winner'].includes(application.workflow_stage)
-      },
-      {
-        stage: 'winner',
-        title: 'Winner',
-        description: 'Application selected as winner',
-        date: application.winner_announcement_date,
-        completed: application.workflow_stage === 'winner'
-      }
-    ];
-
-    res.json({
-      success: true,
-      data: {
-        timeline,
-        current_stage: application.workflow_stage,
-        application_id: application._id
-      }
-    });
-
-  } catch (error) {
-    console.error('Get timeline error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error fetching timeline'
-    });
-  }
-});
-
-// @desc    Get application validation status
-// @route   GET /api/applications/:id/validation
-// @access  Private
-router.get('/:id/validation', protect, async (req, res) => {
-  try {
-    const application = await Application.findOne({
-      _id: req.params.id,
-      user_id: req.user.id
-    });
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        error: 'Application not found'
-      });
-    }
-
-    const validation = {
-      is_complete: application.isCompleteForSubmission(),
-      required_documents: application.validateRequiredDocuments(),
-      required_fields: {
-        business_overview: !!application.business_overview,
-        key_achievements: !!application.key_achievements,
-        products_services_description: !!application.products_services_description,
-        market_reach: !!application.market_reach,
-        jobs_created: application.jobs_created !== undefined,
-        women_youth_percentage: application.women_youth_percentage !== undefined,
-        export_activity: application.export_activity?.has_exports !== undefined,
-        sustainability_initiatives: application.sustainability_initiatives?.has_initiatives !== undefined,
-        award_usage_plans: !!application.award_usage_plans
-      }
-    };
-
-    res.json({
-      success: true,
-      data: validation
-    });
-
-  } catch (error) {
-    console.error('Get validation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error fetching validation status'
-    });
-  }
-});
-
 module.exports = router;
+
+

@@ -65,9 +65,7 @@ router.post('/', [
   body('products_services')
     .notEmpty()
     .withMessage('Products/services description is required'),
-  body('market_reach')
-    .isIn(['local', 'regional', 'national', 'international'])
-    .withMessage('Valid market reach is required'),
+
   body('jobs_created')
     .isInt({ min: 0 })
     .withMessage('Jobs created must be a non-negative number'),
@@ -266,10 +264,7 @@ router.put('/:id', [
     .optional()
     .notEmpty()
     .withMessage('Products/services description cannot be empty'),
-  body('market_reach')
-    .optional()
-    .isIn(['local', 'regional', 'national', 'international'])
-    .withMessage('Valid market reach is required'),
+
   body('jobs_created')
     .optional()
     .isInt({ min: 0 })
@@ -336,7 +331,7 @@ router.put('/:id', [
       'business_description',
       'key_achievements',
       'products_services',
-      'market_reach',
+
       'website',
       'social_media',
       'jobs_created',

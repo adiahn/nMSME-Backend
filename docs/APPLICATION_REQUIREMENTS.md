@@ -253,7 +253,6 @@ Content-Type: application/json
   business_description: String (required, max: 500),
   key_achievements: String (required, max: 300),
   products_services: String (required),
-  market_reach: String (required, enum: ['local', 'regional', 'national', 'international']),
   website: String,
   social_media: {
     facebook: String,
@@ -290,7 +289,7 @@ Content-Type: application/json
     'Emerging Enterprise Award'
   ]),
   workflow_stage: String (required, enum: [
-    'draft',           // Stage 1: Registration & Profile Setup
+    'submitted',       // Stage 1: Application Form completed and submitted
     'submitted',       // Stage 2: Application Form completed
     'pre_screening',   // Stage 3: Pre-Screening & Verification
     'under_review',    // Stage 4: Judging
@@ -303,7 +302,6 @@ Content-Type: application/json
   business_overview: String (required, max: 500),
   key_achievements: String (required, max: 300),
   products_services_description: String (required),
-  market_reach: String (required, enum: ['local', 'regional', 'national', 'international']),
   // Impact metrics from PRD
   jobs_created: Number (required),
   women_youth_percentage: Number (required, 0-100),
@@ -814,7 +812,7 @@ BCRYPT_ROUNDS=12
 - **Medium**: 51-199 Staff or Assets ₦50m-₦500m
 
 ### ✅ Application Workflow Stages
-1. **Draft**: Registration & Profile Setup
+1. **Submitted**: Application Form completed and submitted
 2. **Submitted**: Application Form completed
 3. **Pre-Screening**: Pre-Screening & Verification
 4. **Under Review**: Judging

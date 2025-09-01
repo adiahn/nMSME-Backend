@@ -173,7 +173,7 @@ const applicationData = {
 1. Update dropdown values to match exact backend expectations
 2. Use same value for both `sector` and `category` fields
 3. Test with sample data above
-4. Remove `market_reach` field - it's not in the current backend schema
+
 
 ## 📞 READY FOR TESTING
 
@@ -183,7 +183,7 @@ Once you make these changes, the application creation should work correctly. The
 
 1. **Sector/Category Values:** Use exact case-sensitive values from the provided list
 2. **Revenue Band Values:** Use the full descriptive strings, not abbreviated versions
-3. **Remove market_reach field:** This field is not in the current backend schema
+
 4. **Test with sample data:** Use the provided sample request body for testing
 
 ## 📞 CONTACT

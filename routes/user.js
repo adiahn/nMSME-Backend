@@ -484,10 +484,6 @@ router.get('/application-stats', async (req, res) => {
       user_id: req.user.id, 
       status: 'submitted' 
     });
-    const draftApplications = await Application.countDocuments({ 
-      user_id: req.user.id, 
-      status: 'draft' 
-    });
     const underReviewApplications = await Application.countDocuments({ 
       user_id: req.user.id, 
       status: 'under_review' 
@@ -524,7 +520,6 @@ router.get('/application-stats', async (req, res) => {
       data: {
         total_applications: totalApplications,
         submitted: submittedApplications,
-        draft: draftApplications,
         under_review: underReviewApplications,
         approved: approvedApplications,
         rejected: rejectedApplications,

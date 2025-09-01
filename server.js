@@ -62,21 +62,41 @@ app.use(cors({
   maxAge: 86400 // 24 hours
 }));
 
-// Rate limiting - More lenient for development
+// Rate limiting - Very lenient for development
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 500, // limit each IP to 500 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10000, // limit each IP to 10,000 requests per 15 minutes (very high for dev)
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for health checks
-  skip: (req) => req.path === '/health'
+  // Skip rate limiting for health checks and application submissions
+  skip: (req) => {
+    return req.path === '/health' || 
+           req.path === '/api/health' ||
+           req.path === '/api/applications' ||
+           req.path === '/api/applications/complete' ||
+           req.path === '/api/applications/:id/submit';
+  }
 });
 
-// Apply rate limiting to all routes except health check
+// Apply rate limiting to all routes except health check and applications
 app.use('/api/', limiter);
+
+// Very lenient rate limiting specifically for application submissions
+const applicationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // 1000 application submissions per 15 minutes
+  message: {
+    error: 'Too many application submissions, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply application-specific rate limiting
+app.use('/api/applications', applicationLimiter);
 
 // More lenient rate limiting for authentication endpoints
 const authLimiter = rateLimit({
@@ -92,7 +112,15 @@ const authLimiter = rateLimit({
 // Apply auth-specific rate limiting
 app.use('/api/auth/', authLimiter);
 
-// Body parsing middleware
+// Body parsing middleware - exclude multipart form data
+app.use((req, res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+    // Skip body parsing for multipart form data
+    return next();
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
