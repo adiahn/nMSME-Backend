@@ -660,6 +660,140 @@ function getStatusSummary(workflowStage) {
 }
 
 /**
+ * @route   GET /api/user/application-details
+ * @desc    Get user's complete application details
+ * @access  Private
+ */
+router.get('/application-details', async (req, res) => {
+  try {
+    console.log('Fetching complete application details for user:', req.user.id);
+    
+    // Import Application model
+    const { Application } = require('../models');
+    
+    // Find user's application with all details
+    const application = await Application.findOne({ user_id: req.user.id })
+      .populate('user_id', 'first_name last_name email phone')
+      .lean();
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'No application found for this user',
+        data: null
+      });
+    }
+
+    // Get business profile if exists
+    const businessProfile = await BusinessProfile.findOne({ user_id: req.user.id }).lean();
+
+    // Prepare complete application data
+    const completeApplicationData = {
+      // Application basic info
+      application_id: application._id,
+      business_name: application.business_name,
+      category: application.category,
+      workflow_stage: application.workflow_stage,
+      created_at: application.createdAt,
+      updated_at: application.updatedAt,
+      
+      // User information
+      user: {
+        user_id: application.user_id._id,
+        first_name: application.user_id.first_name,
+        last_name: application.user_id.last_name,
+        email: application.user_id.email,
+        phone: application.user_id.phone
+      },
+      
+      // Business profile (if exists)
+      business_profile: businessProfile || null,
+      
+      // Application form details (all fields that are actually stored in the database)
+      application_details: {
+        // Core application fields
+        key_achievements: application.key_achievements,
+        products_services_description: application.products_services_description,
+        jobs_created: application.jobs_created,
+        women_youth_percentage: application.women_youth_percentage,
+        export_activity: application.export_activity,
+        sustainability_initiatives: application.sustainability_initiatives,
+        award_usage_plans: application.award_usage_plans,
+        
+        // Business details (stored in Application model, not BusinessProfile)
+        business_description: application.business_description,
+        cac_number: application.cac_number,
+        sector: application.sector,
+        msme_strata: application.msme_strata,
+        location: application.location,
+        year_established: application.year_established,
+        employee_count: application.employee_count,
+        revenue_band: application.revenue_band,
+        website: application.website,
+        social_media: application.social_media
+      },
+      
+      // Additional application fields that are stored but not in application_details
+      total_score: application.total_score,
+      average_score: application.average_score,
+      pre_screening: application.pre_screening,
+      submission_date: application.submission_date,
+      review_start_date: application.review_start_date,
+      review_completion_date: application.review_completion_date,
+      shortlist_date: application.shortlist_date,
+      winner_announcement_date: application.winner_announcement_date,
+      
+      // Documents
+      documents: application.documents || [],
+      documents_count: application.documents ? application.documents.length : 0,
+      
+      // Pitch video
+      pitch_video: application.pitch_video || null,
+      has_pitch_video: !!application.pitch_video,
+      
+      // Scores (if any)
+      scores: application.scores || [],
+      has_scores: application.scores && application.scores.length > 0,
+      
+      // Status summary
+      status_summary: getStatusSummary(application.workflow_stage),
+      
+      // Additional metadata
+      metadata: {
+        is_complete: application.isComplete ? application.isComplete() : false,
+        can_edit: application.workflow_stage === 'submitted',
+        last_modified: application.updatedAt,
+        days_since_submission: application.createdAt ? 
+          Math.floor((new Date() - new Date(application.createdAt)) / (1000 * 60 * 60 * 24)) : 0
+      }
+    };
+
+    console.log('Complete application details retrieved for user:', {
+      user_id: req.user.id,
+      application_id: application._id,
+      business_name: application.business_name,
+      workflow_stage: application.workflow_stage,
+      documents_count: completeApplicationData.documents_count,
+      has_pitch_video: completeApplicationData.has_pitch_video
+    });
+
+    res.json({
+      success: true,
+      message: 'Complete application details retrieved successfully',
+      data: completeApplicationData
+    });
+
+  } catch (error) {
+    console.error('Error fetching complete application details:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error fetching application details',
+      details: error.message
+    });
+  }
+});
+
+/**
  * @route   GET /api/user/notifications
  * @desc    Get user's notifications
  * @access  Private
