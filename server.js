@@ -4,7 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
+// const rateLimit = require('express-rate-limit'); // DISABLED - No rate limiting
 require('dotenv').config({ path: './config.env' });
 
 // Import routes
@@ -77,55 +77,55 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Rate limiting - Very lenient for development
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10000, // limit each IP to 10,000 requests per 15 minutes (very high for dev)
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Skip rate limiting for health checks and application submissions
-  skip: (req) => {
-    return req.path === '/health' || 
-           req.path === '/api/health' ||
-           req.path === '/api/applications' ||
-           req.path === '/api/applications/complete' ||
-           req.path === '/api/applications/:id/submit';
-  }
-});
+// Rate limiting - DISABLED
+// const limiter = rateLimit({
+//   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1,000 requests per 15 minutes
+//   message: {
+//     error: 'Too many requests from this IP, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   // Skip rate limiting for health checks and application submissions
+//   skip: (req) => {
+//     return req.path === '/health' || 
+//            req.path === '/api/health' ||
+//            req.path === '/api/applications' ||
+//            req.path === '/api/applications/complete' ||
+//            req.path === '/api/applications/:id/submit';
+//   }
+// });
 
-// Apply rate limiting to all routes except health check and applications
-app.use('/api/', limiter);
+// Rate limiting DISABLED - No limits applied
+// app.use('/api/', limiter);
 
-// Very lenient rate limiting specifically for application submissions
-const applicationLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 1000 application submissions per 15 minutes
-  message: {
-    error: 'Too many application submissions, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+// Application rate limiting - DISABLED
+// const applicationLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.APPLICATION_RATE_LIMIT_MAX) || 1000, // application submissions per 15 minutes
+//   message: {
+//     error: 'Too many application submissions, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
 
-// Apply application-specific rate limiting
-app.use('/api/applications', applicationLimiter);
+// Application rate limiting DISABLED - No limits applied
+// app.use('/api/applications', applicationLimiter);
 
-// More lenient rate limiting for authentication endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // 50 login attempts per 15 minutes
-  message: {
-    error: 'Too many authentication attempts, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+// Authentication rate limiting - DISABLED
+// const authLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.AUTH_RATE_LIMIT_MAX) || 200, // authentication attempts per 15 minutes
+//   message: {
+//     error: 'Too many authentication attempts, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
 
-// Apply auth-specific rate limiting
-app.use('/api/auth/', authLimiter);
+// Authentication rate limiting DISABLED - No limits applied
+// app.use('/api/auth/', authLimiter);
 
 // Additional CORS headers for all responses
 app.use((req, res, next) => {
