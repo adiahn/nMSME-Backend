@@ -18,12 +18,12 @@ const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Cleanup incomplete registrations (older than 15 minutes)
+// Cleanup incomplete registrations (older than 24 hours)
 const cleanupIncompleteRegistrations = async () => {
   try {
-    const cutoffTime = Date.now() - 15 * 60 * 1000; // 15 minutes ago
+    const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
     const result = await User.deleteMany({
-      registration_step: { $lt: 3 },
+      account_status: { $in: ['incomplete', 'pending_verification'] },
       created_at: { $lt: new Date(cutoffTime) }
     });
     
@@ -79,10 +79,68 @@ router.post('/register', [
     // Check if user already exists
     const existingUser = await User.findByEmailOrPhone(email);
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: 'User already exists with this email or phone number'
-      });
+      // If user exists but account is incomplete, allow them to complete registration
+      if (existingUser.account_status === 'incomplete') {
+        // Update the existing incomplete account with new details
+        existingUser.first_name = first_name;
+        existingUser.last_name = last_name;
+        existingUser.phone = phone;
+        existingUser.password_hash = password; // Will be hashed by pre-save middleware
+        existingUser.gender = gender;
+        existingUser.age_band = age_band;
+        existingUser.account_status = 'pending_verification';
+        existingUser.otp_code = generateOTP();
+        existingUser.otp_expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        await existingUser.save();
+        
+        // Send OTP email
+        const otpSent = await sendOTPEmail(existingUser, existingUser.otp_code);
+        if (!otpSent) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to send OTP email. Please try again.'
+          });
+        }
+        
+        return res.status(200).json({
+          success: true,
+          message: 'OTP sent to your email. Please verify to complete registration.',
+          data: {
+            user_id: existingUser._id,
+            email: existingUser.email,
+            account_status: 'pending_verification'
+          }
+        });
+      } else if (existingUser.account_status === 'pending_verification') {
+        // User exists but hasn't verified yet, resend OTP
+        existingUser.otp_code = generateOTP();
+        existingUser.otp_expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        await existingUser.save();
+        
+        const otpSent = await sendOTPEmail(existingUser, existingUser.otp_code);
+        if (!otpSent) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to send OTP email. Please try again.'
+          });
+        }
+        
+        return res.status(200).json({
+          success: true,
+          message: 'OTP resent to your email. Please verify to complete registration.',
+          data: {
+            user_id: existingUser._id,
+            email: existingUser.email,
+            account_status: 'pending_verification'
+          }
+        });
+      } else {
+        // User exists and is active
+        return res.status(400).json({
+          success: false,
+          error: 'User already exists with this email or phone number'
+        });
+      }
     }
 
     // Create user
@@ -93,7 +151,8 @@ router.post('/register', [
       phone,
       password_hash: password, // Will be hashed by pre-save middleware
       gender,
-      age_band
+      age_band,
+      account_status: 'pending_verification'
     });
 
     // Generate email verification token
@@ -623,9 +682,11 @@ router.post('/register/step2', [
       });
     }
 
-    // Mark OTP as verified and move to step 3
+    // Mark OTP as verified and activate account
     user.otp_verified = true;
     user.registration_step = 3;
+    user.account_status = 'active';
+    user.is_verified = true;
     await user.save();
 
     res.json({

@@ -49,6 +49,11 @@ const userSchema = new mongoose.Schema({
     enum: ['applicant', 'judge', 'admin', 'super_admin', 'sponsor', 'public'],
     default: 'applicant'
   },
+  account_status: {
+    type: String,
+    enum: ['pending_verification', 'active', 'incomplete'],
+    default: 'pending_verification'
+  },
   is_verified: {
     type: Boolean,
     default: false
