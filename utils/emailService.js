@@ -45,9 +45,9 @@ const generatePasswordResetToken = (userId) => {
   );
 };
 
-// Send OTP email using SendGrid
+// Send OTP email using Gmail SMTP
 const sendOTPEmail = async (user, otpCode) => {
-  const transporter = createSendGridTransporter();
+  const transporter = createLegacyTransporter();
   const mailOptions = {
     from: `"nMSME Awards Portal" <${process.env.EMAIL_FROM}>`,
     to: user.email,
