@@ -7,6 +7,51 @@ router.get('/', (req, res) => {
 });
 
 /**
+ * @route   GET /api/public/debug/users
+ * @desc    Get all users (public debug endpoint)
+ * @access  Public
+ */
+router.get('/debug/users', async (req, res) => {
+  try {
+    console.log('Public debug endpoint: Checking all users');
+    
+    const { User } = require('../models');
+    const users = await User.find()
+      .sort('-createdAt')
+      .select('first_name last_name email phone role account_status is_verified is_active createdAt updatedAt');
+
+    console.log(`Found ${users.length} users in database`);
+
+    res.json({
+      success: true,
+      message: 'Public debug endpoint - All users',
+      count: users.length,
+      timestamp: new Date().toISOString(),
+      users: users.map(user => ({
+        id: user._id,
+        name: `${user.first_name} ${user.last_name}`,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        account_status: user.account_status,
+        is_verified: user.is_verified,
+        is_active: user.is_active,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching users',
+      error: error.message
+    });
+  }
+});
+
+/**
  * @route   GET /api/public/debug/applications
  * @desc    Get all applications (public debug endpoint)
  * @access  Public

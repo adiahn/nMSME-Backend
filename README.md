@@ -10,6 +10,7 @@ A comprehensive backend API for the nMSME Awards Portal, supporting user registr
 - 🔧 **[API Documentation](./docs/API_Documentation.txt)**
 - 🚀 **[Judge Dashboard Implementation Guide](./docs/JUDGE_DASHBOARD_IMPLEMENTATION_GUIDE.md)**
 - 📋 **[Application Requirements](./docs/APPLICATION_REQUIREMENTS.md)**
+- 🛠️ **[Scripts Documentation](./scripts/README.md)**
 
 ## 🚀 **Quick Start**
 
@@ -43,6 +44,7 @@ curl http://localhost:5000/health
 ```
 nMSME-Backend/
 ├── docs/                   # 📚 All documentation
+├── scripts/                # 🛠️ Utility and testing scripts
 ├── models/                 # Database models
 ├── routes/                 # API routes
 ├── middleware/             # Custom middleware

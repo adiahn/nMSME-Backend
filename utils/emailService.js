@@ -27,6 +27,53 @@ const createLegacyTransporter = () => {
   });
 };
 
+// Create multiple Gmail transporters for fallback
+const createGmailTransporter = (user, pass) => {
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: user,
+      pass: pass
+    }
+  });
+};
+
+// Get all available email accounts
+const getEmailAccounts = () => {
+  const accounts = [];
+  
+  // Primary account
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    accounts.push({
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+      name: 'Primary Gmail'
+    });
+  }
+  
+  // Backup account 1
+  if (process.env.EMAIL_USER_2 && process.env.EMAIL_PASS_2) {
+    accounts.push({
+      user: process.env.EMAIL_USER_2,
+      pass: process.env.EMAIL_PASS_2,
+      name: 'Backup Gmail 1'
+    });
+  }
+  
+  // Backup account 2
+  if (process.env.EMAIL_USER_3 && process.env.EMAIL_PASS_3) {
+    accounts.push({
+      user: process.env.EMAIL_USER_3,
+      pass: process.env.EMAIL_PASS_3,
+      name: 'Backup Gmail 2'
+    });
+  }
+  
+  return accounts;
+};
+
 // Generate email verification token
 const generateEmailVerificationToken = (userId) => {
   return jwt.sign(
@@ -45,9 +92,15 @@ const generatePasswordResetToken = (userId) => {
   );
 };
 
-// Send OTP email using Gmail SMTP
+// Send OTP email using Gmail SMTP with fallback
 const sendOTPEmail = async (user, otpCode) => {
-  const transporter = createLegacyTransporter();
+  const emailAccounts = getEmailAccounts();
+  
+  if (emailAccounts.length === 0) {
+    console.error('No email accounts configured');
+    return false;
+  }
+  
   const mailOptions = {
     from: `"nMSME Awards Portal" <${process.env.EMAIL_FROM}>`,
     to: user.email,
@@ -72,20 +125,31 @@ const sendOTPEmail = async (user, otpCode) => {
     `
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ OTP email sent successfully to ${user.email}`);
-    return true;
-  } catch (error) {
-    console.error('OTP email error:', error.message);
+  // Try each email account until one succeeds
+  for (let i = 0; i < emailAccounts.length; i++) {
+    const account = emailAccounts[i];
+    console.log(`📧 Trying ${account.name} (${account.user})...`);
     
-    // Check if it's a sender identity issue
-    if (error.message.includes('Sender Identity')) {
-      console.error('⚠️ Sender identity not verified. Please verify your email in SendGrid dashboard.');
+    try {
+      const transporter = createGmailTransporter(account.user, account.pass);
+      await transporter.sendMail(mailOptions);
+      console.log(`✅ OTP email sent successfully to ${user.email} using ${account.name}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ ${account.name} failed:`, error.message);
+      
+      // If this is the last account, return false
+      if (i === emailAccounts.length - 1) {
+        console.error('All email accounts failed');
+        return false;
+      }
+      
+      // Continue to next account
+      console.log(`🔄 Trying next email account...`);
     }
-    
-    return false;
   }
+  
+  return false;
 };
 
 // Send email verification
