@@ -130,9 +130,17 @@ const applicationSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  cac_number: {
+  business_registration_status: {
     type: String,
     required: true,
+    enum: ['registered', 'not_registered'],
+    default: 'registered'
+  },
+  cac_number: {
+    type: String,
+    required: function() {
+      return this.business_registration_status === 'registered';
+    },
     trim: true
   },
   sector: {
@@ -392,9 +400,14 @@ applicationSchema.methods.validateRequiredDocuments = function() {
     product_photos: false
   };
   
-  // Check for CAC certificate
-  const cacDoc = this.documents.find(doc => doc.document_type === 'cac_certificate');
-  if (cacDoc) requiredDocs.cac_certificate = true;
+  // Check for CAC certificate (only required if business is registered)
+  if (this.business_registration_status === 'registered') {
+    const cacDoc = this.documents.find(doc => doc.document_type === 'cac_certificate');
+    if (cacDoc) requiredDocs.cac_certificate = true;
+  } else {
+    // For unregistered businesses, CAC certificate is not required
+    requiredDocs.cac_certificate = true;
+  }
   
   // Check for pitch video link
   if (this.pitch_video && this.pitch_video.url && this.pitch_video.platform) {
@@ -415,6 +428,7 @@ applicationSchema.methods.isComplete = function() {
   const requiredDocs = this.validateRequiredDocuments();
   const hasAllRequiredDocs = Object.values(requiredDocs).every(Boolean);
   
+  // Check required fields based on business registration status
   const hasRequiredFields = 
     this.business_description &&
     this.key_achievements &&
@@ -423,7 +437,9 @@ applicationSchema.methods.isComplete = function() {
     this.women_youth_percentage !== undefined &&
     this.export_activity.has_exports !== undefined &&
     this.sustainability_initiatives.has_initiatives !== undefined &&
-    this.award_usage_plans;
+    this.award_usage_plans &&
+    // CAC number is only required for registered businesses
+    (this.business_registration_status === 'not_registered' || this.cac_number);
   
   return hasAllRequiredDocs && hasRequiredFields;
 };

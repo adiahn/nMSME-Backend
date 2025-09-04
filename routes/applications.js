@@ -407,13 +407,26 @@ router.post('/complete', protect, upload.fields([
 
     const parsedData = parseNestedData(req.body);
     console.log('Parsed data:', parsedData);
+    console.log('🔍 Raw business_registration_status:', req.body.business_registration_status);
+    console.log('🔍 Parsed business_registration_status:', parsedData.business_registration_status);
+    console.log('🔍 Type of business_registration_status:', typeof parsedData.business_registration_status);
 
     // Validate required fields
     const requiredFields = [
-      'business_name', 'cac_number', 'sector', 'msme_strata', 
+      'business_name', 'business_registration_status', 'sector', 'msme_strata', 
       'location', 'year_established', 'employee_count', 'revenue_band',
       'business_description', 'category', 'export_activity', 'sustainability_initiatives'
     ];
+
+    // Add CAC number to required fields only if business is registered
+    console.log('🔍 Checking if CAC should be required...');
+    console.log('🔍 business_registration_status === "registered":', parsedData.business_registration_status === 'registered');
+    if (parsedData.business_registration_status === 'registered') {
+      requiredFields.push('cac_number');
+      console.log('🔍 Added cac_number to required fields for registered business');
+    } else {
+      console.log('🔍 NOT adding cac_number to required fields for unregistered business');
+    }
 
     // Special validation for pitch_video (can be object or string)
     let pitchVideoValid = false;
@@ -460,6 +473,9 @@ router.post('/complete', protect, upload.fields([
       });
     }
 
+    console.log(`🔍 Required fields to validate:`, requiredFields);
+    console.log(`🔍 Business registration status:`, parsedData.business_registration_status);
+    
     for (const field of requiredFields) {
       console.log(`Validating ${field}:`, parsedData[field]);
       
@@ -478,6 +494,17 @@ router.post('/complete', protect, upload.fields([
       } else if (field === 'sustainability_initiatives') {
         // Sustainability initiatives is an object, already validated above
         isValid = true;
+      } else if (field === 'cac_number') {
+        // CAC number is only required for registered businesses
+        console.log(`🔍 CAC validation - Registration status: ${parsedData.business_registration_status}, CAC value: ${parsedData[field]}`);
+        if (parsedData.business_registration_status === 'registered') {
+          isValid = parsedData[field] && parsedData[field].toString().trim() !== '';
+          console.log(`🔍 CAC validation for registered business: ${isValid}`);
+        } else {
+          // For unregistered businesses, CAC number is not required
+          isValid = true;
+          console.log(`🔍 CAC validation for unregistered business: ${isValid} (always valid)`);
+        }
       } else {
         // Regular string fields
         isValid = parsedData[field] && parsedData[field].toString().trim() !== '';
@@ -521,6 +548,12 @@ router.post('/complete', protect, upload.fields([
     const documents = [];
     if (req.files) {
       for (const [fieldName, files] of Object.entries(req.files)) {
+        // Skip CAC certificate if business is not registered
+        if (fieldName === 'cac_certificate' && parsedData.business_registration_status === 'not_registered') {
+          console.log('Skipping CAC certificate upload for unregistered business');
+          continue;
+        }
+        
         for (const file of files) {
           // Handle Cloudinary response properly
           const documentData = {
@@ -543,11 +576,12 @@ router.post('/complete', protect, upload.fields([
     }
 
     // Create application
-    const application = new Application({
+    const applicationData = {
       user_id: req.user.id,
       // Business details
       business_name: parsedData.business_name,
-      cac_number: parsedData.cac_number,
+      business_registration_status: parsedData.business_registration_status,
+      ...(parsedData.business_registration_status === 'registered' && parsedData.cac_number ? { cac_number: parsedData.cac_number } : {}),
       sector: parsedData.sector,
       msme_strata: parsedData.msme_strata,
       location: parsedData.location,
@@ -588,8 +622,9 @@ router.post('/complete', protect, upload.fields([
       })(),
       // Documents
       documents: documents
-    });
+    };
 
+    const application = new Application(applicationData);
     await application.save();
 
     res.status(201).json({
@@ -731,5 +766,4 @@ router.delete('/:id', protect, async (req, res) => {
 });
 
 module.exports = router;
-
 

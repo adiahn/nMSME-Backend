@@ -722,6 +722,7 @@ router.get('/application-details', async (req, res) => {
         
         // Business details (stored in Application model, not BusinessProfile)
         business_description: application.business_description,
+        business_registration_status: application.business_registration_status,
         cac_number: application.cac_number,
         sector: application.sector,
         msme_strata: application.msme_strata,
