@@ -4,8 +4,10 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
+// const rateLimit = require('express-rate-limit'); // DISABLED - No rate limiting
 require('dotenv').config({ path: './config.env' });
 
+// Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const applicationRoutes = require('./routes/applications');
@@ -16,6 +18,7 @@ const adminRoutes = require('./routes/admin');
 const publicRoutes = require('./routes/public');
 const categoryRoutes = require('./routes/categories');
 
+// Import middleware
 const errorHandler = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
 
@@ -23,27 +26,30 @@ const app = express();
 
 app.use(helmet());
 
+// Handle CORS preflight requests
 app.options('*', cors());
 
-app.use(cors({
+// CORS configuration
+const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://127.0.0.1:3000',
       'https://n-msme-frontend.vercel.app',
+      'https://nmsmeadmin.vercel.app', // Production admin frontend
       'http://kasedaaward.com',
       'https://kasedaaward.com',
-      'https://nmsmeadmin.vercel.app',
       process.env.APP_URL
-    ].filter(Boolean);
+    ].filter(Boolean); // Remove undefined values
     
     console.log('CORS check - Origin:', origin);
     console.log('Allowed origins:', allowedOrigins);
     
+    // Allow kasedaaward.com and its subdomains
     if (allowedOrigins.indexOf(origin) !== -1 || 
         origin.includes('kasedaaward.com') ||
-        origin.includes('nmsmeadmin.vercel.app') ||
         origin.includes('localhost') ||
         origin.includes('127.0.0.1')) {
       console.log('CORS allowed for origin:', origin);
@@ -64,14 +70,89 @@ app.use(cors({
     'X-Auth-Token',
     'Access-Control-Allow-Origin',
     'Access-Control-Allow-Methods',
-    'Access-Control-Allow-Headers'
+    'Access-Control-Allow-Headers',
+    'Access-Control-Allow-Credentials'
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 86400, // 24 hours
   preflightContinue: false,
   optionsSuccessStatus: 204
-}));
+};
 
+app.use(cors(corsOptions));
+
+// Additional manual CORS headers for extra security
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://n-msme-frontend.vercel.app',
+    'https://nmsmeadmin.vercel.app',
+    'http://kasedaaward.com',
+    'https://kasedaaward.com'
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Auth-Token');
+  next();
+});
+
+// Rate limiting - DISABLED
+// const limiter = rateLimit({
+//   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1,000 requests per 15 minutes
+//   message: {
+//     error: 'Too many requests from this IP, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   // Skip rate limiting for health checks and application submissions
+//   skip: (req) => {
+//     return req.path === '/health' || 
+//            req.path === '/api/health' ||
+//            req.path === '/api/applications' ||
+//            req.path === '/api/applications/complete' ||
+//            req.path === '/api/applications/:id/submit';
+//   }
+// });
+
+// Rate limiting DISABLED - No limits applied
+// app.use('/api/', limiter);
+
+// Application rate limiting - DISABLED
+// const applicationLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.APPLICATION_RATE_LIMIT_MAX) || 1000, // application submissions per 15 minutes
+//   message: {
+//     error: 'Too many application submissions, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
+
+// Application rate limiting DISABLED - No limits applied
+// app.use('/api/applications', applicationLimiter);
+
+// Authentication rate limiting - DISABLED
+// const authLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.AUTH_RATE_LIMIT_MAX) || 200, // authentication attempts per 15 minutes
+//   message: {
+//     error: 'Too many authentication attempts, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
+
+// Authentication rate limiting DISABLED - No limits applied
+// app.use('/api/auth/', authLimiter);
+
+// Additional CORS headers for all responses
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
@@ -85,8 +166,10 @@ app.use((req, res, next) => {
   }
 });
 
+// Body parsing middleware - exclude multipart form data
 app.use((req, res, next) => {
   if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+    // Skip body parsing for multipart form data
     return next();
   }
   next();
@@ -95,19 +178,23 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Compression middleware
 app.use(compression());
 
+// Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
+// Request logging middleware for debugging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'No origin'}`);
   next();
 });
 
+// Health check endpoints
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'success',
@@ -126,6 +213,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// CORS test endpoint
 app.get('/api/cors-test', (req, res) => {
   res.status(200).json({
     status: 'success',
@@ -135,8 +223,10 @@ app.get('/api/cors-test', (req, res) => {
   });
 });
 
+// Handle preflight requests for CORS
 app.options('*', cors());
 
+// API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/applications', applicationRoutes);
@@ -147,9 +237,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/categories', categoryRoutes);
 
+// Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
 
+// Database connection
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
@@ -162,6 +254,7 @@ const connectDB = async () => {
   }
 };
 
+// Start server
 const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
@@ -178,8 +271,10 @@ const startServer = async () => {
 
 startServer();
 
+// Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.log(`Error: ${err.message}`);
+  // Close server & exit process
   process.exit(1);
 });
 
