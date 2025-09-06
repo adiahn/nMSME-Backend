@@ -20,6 +20,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'nmsme-documents',
+    resource_type: 'auto', // Automatically detect file type (image, video, raw)
     allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
     transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
   }

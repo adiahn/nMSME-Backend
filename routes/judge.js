@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { Judge, Application, ApplicationAssignment, Score, Notification, User, ApplicationLock } = require('../models');
 const { protect, authorize } = require('../middleware/auth');
+const { fixApplicationDocumentUrls } = require('../utils/cloudinaryHelper');
 
 const router = express.Router();
 
@@ -577,15 +578,35 @@ router.get('/applications/:applicationId', async (req, res) => {
       });
     }
 
+    // Map judge's expertise to categories
+    const expertiseToCategoryMap = {
+      'fashion': 'Fashion',
+      'it': 'Information Technology (IT)',
+      'agribusiness': 'Agribusiness',
+      'food_beverage': 'Food & Beverage',
+      'light_manufacturing': 'Light Manufacturing',
+      'creative_enterprise': 'Creative Enterprise',
+      'nano_category': 'Emerging Enterprise Award',
+      'emerging_enterprise': 'Emerging Enterprise Award'
+    };
+    const judgeCategories = judge.expertise_sectors.map(sector => expertiseToCategoryMap[sector]).filter(Boolean);
+
     // Get application details
     const application = await Application.findById(applicationId)
-      .populate('user_id', 'first_name last_name')
-      .populate('business_profile_id', 'company_name registration_number year_established employee_count annual_revenue location');
+      .populate('user_id', 'first_name last_name email phone');
 
     if (!application) {
       return res.status(404).json({
         success: false,
         error: 'Application not found'
+      });
+    }
+
+    // Check if application is in judge's expertise categories
+    if (!judgeCategories.includes(application.category)) {
+      return res.status(403).json({
+        success: false,
+        error: 'You are not authorized to review applications in this category'
       });
     }
 
@@ -606,36 +627,150 @@ router.get('/applications/:applicationId', async (req, res) => {
       .populate('judge_id.user_id', 'first_name last_name')
       .sort({ scored_at: -1 });
 
+    // Fix document URLs to use correct Cloudinary resource types
+    const applicationWithFixedUrls = fixApplicationDocumentUrls(application);
+
     res.json({
       success: true,
       data: {
         application: {
+          // Basic Information
           id: application._id,
           category: application.category,
-          title: application.business_description,
-          business_description: application.business_description,
-          workflow_stage: application.workflow_stage,
-          submission_date: application.submission_date,
           sector: application.sector,
           msme_strata: application.msme_strata,
-          status: application.status,
-          documents: application.documents || [],
-          business_profile: application.business_profile_id ? {
-            company_name: application.business_profile_id.company_name,
-            registration_number: application.business_profile_id.registration_number,
-            year_established: application.business_profile_id.year_established,
-            employee_count: application.business_profile_id.employee_count,
-            annual_revenue: application.business_profile_id.annual_revenue,
-            location: application.business_profile_id.location
-          } : null
+          workflow_stage: application.workflow_stage,
+          status: application.status || 'active',
+          submission_date: application.submission_date,
+          created_at: application.createdAt,
+          updated_at: application.updatedAt,
+          
+          // Business Information
+          business_name: application.business_name,
+          business_description: application.business_description,
+          business_registration_status: application.business_registration_status,
+          cac_number: application.cac_number,
+          business_type: application.business_type,
+          year_established: application.year_established,
+          employee_count: application.employee_count,
+          revenue_band: application.revenue_band,
+          
+          // Location Information
+          location: {
+            state: application.location?.state,
+            lga: application.location?.lga
+          },
+          
+          // Contact Information
+          website: application.website,
+          social_media: application.social_media || {},
+          
+          // Application Content
+          key_achievements: application.key_achievements,
+          products_services_description: application.products_services_description,
+          
+          // Impact Metrics
+          jobs_created: application.jobs_created,
+          women_youth_percentage: application.women_youth_percentage,
+          export_activity: {
+            has_exports: application.export_activity?.has_exports,
+            export_details: application.export_activity?.export_details
+          },
+          sustainability_initiatives: {
+            has_initiatives: application.sustainability_initiatives?.has_initiatives,
+            initiative_details: application.sustainability_initiatives?.initiative_details
+          },
+          award_usage_plans: application.award_usage_plans,
+          
+          // Legacy Fields (if they exist)
+          owner_position: application.owner_position,
+          alternate_phone: application.alternate_phone,
+          why_deserve_award: application.why_deserve_award,
+          achievements: application.achievements || [],
+          challenges: application.challenges || [],
+          future_goals: application.future_goals || [],
+          target_market: application.target_market,
+          
+          // Media & Documents
+          pitch_video: {
+            url: application.pitch_video?.url,
+            youtube_vimeo_url: application.pitch_video?.youtube_vimeo_url,
+            video_id: application.pitch_video?.video_id,
+            platform: application.pitch_video?.platform,
+            is_youtube_link: application.pitch_video?.is_youtube_link
+          },
+          documents: applicationWithFixedUrls.documents || [],
+          
+          // Scoring Information
+          scores: application.scores || [],
+          total_score: application.total_score || 0,
+          average_score: application.average_score || 0,
+          
+          // Pre-screening Information
+          pre_screening: {
+            passed: application.pre_screening?.passed || false,
+            checked_by: application.pre_screening?.checked_by,
+            checked_at: application.pre_screening?.checked_at,
+            notes: application.pre_screening?.notes,
+            issues: application.pre_screening?.issues || []
+          },
+          
+          // Timeline Information
+          review_start_date: application.review_start_date,
+          review_completion_date: application.review_completion_date,
+          shortlist_date: application.shortlist_date,
+          winner_announcement_date: application.winner_announcement_date,
+          
+          // Applicant Information
+          applicant: {
+            id: application.user_id._id,
+            first_name: application.user_id.first_name,
+            last_name: application.user_id.last_name,
+            email: application.user_id.email,
+            phone: application.user_id.phone
+          },
+          
+          // Application Metadata
+          application_age: application.application_age || 0,
+          is_complete: application.isComplete ? application.isComplete() : false,
+          required_documents_status: application.validateRequiredDocuments ? application.validateRequiredDocuments() : {}
         },
+        
+        // Lock and Review Information
         lock_status: lockStatus,
+        review_info: {
+          can_review: !lockStatus.is_locked || lockStatus.locked_by === judge._id.toString(),
+          is_locked: lockStatus.is_locked,
+          locked_by: lockStatus.locked_by,
+          lock_expires_at: lockStatus.lock_expires_at
+        },
+        
+        // Previous Scores from Other Judges
         previous_scores: previousScores.map(score => ({
           id: score._id,
           total_score: score.total_score,
+          criteria_scores: {
+            innovation_differentiation: score.innovation_differentiation,
+            market_traction_growth: score.market_traction_growth,
+            impact_job_creation: score.impact_job_creation,
+            financial_health_governance: score.financial_health_governance,
+            inclusion_sustainability: score.inclusion_sustainability,
+            scalability_award_use: score.scalability_award_use
+          },
+          comments: score.comments,
+          recommendations: score.recommendations,
+          review_notes: score.review_notes,
           scored_at: score.scored_at,
           judge_name: `${score.judge_id.user_id.first_name} ${score.judge_id.user_id.last_name}`
-        }))
+        })),
+        
+        // Judge Authorization
+        judge_authorization: {
+          can_view: true,
+          can_review: !lockStatus.is_locked || lockStatus.locked_by === judge._id.toString(),
+          expertise_match: judgeCategories.includes(application.category),
+          judge_categories: judgeCategories
+        }
       }
     });
   } catch (error) {
