@@ -1,0 +1,55 @@
+Subject: Complete Your nMSME Awards Application - We're Here to Help!
+
+Dear {{USER_NAME}},
+
+We noticed that you successfully registered for the nMSME Awards 2024 but haven't completed your application yet. We're here to help you finish this important step!
+
+🎯 DON'T MISS OUT!
+The application deadline is approaching, and we don't want you to miss this incredible opportunity to showcase your business and compete for recognition and prizes.
+
+WHY COMPLETE YOUR APPLICATION?
+• Recognition: Get your business recognized as a leader in your sector
+• Prizes: Compete for valuable awards and cash prizes
+• Networking: Connect with other successful entrepreneurs
+• Growth: Access to business development opportunities
+• Credibility: Enhance your business reputation and market standing
+
+🆘 NEED HELP? WE'RE HERE FOR YOU!
+If you encountered any issues during the application process, we're ready to assist you:
+
+• Technical Issues: Problems with file uploads, form submission, or website navigation
+• Documentation: Questions about required documents or how to prepare them
+• Application Content: Help with writing compelling business descriptions or achievements
+• General Support: Any other questions about the application process
+
+COMPLETE YOUR APPLICATION NOW:
+{{APPLICATION_URL}}
+
+📞 GET IMMEDIATE HELP:
+Email Support: support@kasedaaward.com
+Phone Support: +234 (0) 123 456 7890
+WhatsApp: +234 (0) 987 654 3210
+Response Time: We typically respond within 2-4 hours during business hours
+
+⏰ IMPORTANT: The application deadline is {{DEADLINE_DATE}}. Please complete your application before this date to be considered for the awards.
+
+QUICK APPLICATION CHECKLIST:
+✅ Business registration status (Registered/Not Registered)
+✅ Business details and description
+✅ Key achievements and impact metrics
+✅ Product/service descriptions
+✅ Required documents (CAC certificate if registered)
+✅ Pitch video (YouTube link)
+✅ Product photos
+
+If you have any questions or need assistance with any of these steps, please don't hesitate to reach out to our support team.
+
+We believe in your potential and look forward to seeing your complete application!
+
+Best regards,
+The nMSME Awards Team
+
+---
+This email was sent because you registered for the nMSME Awards 2024 but haven't completed your application.
+If you have already submitted your application, please ignore this email or contact us if you have any concerns.
+© 2024 nMSME Awards. All rights reserved.

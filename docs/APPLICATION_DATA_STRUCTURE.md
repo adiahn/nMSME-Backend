@@ -238,7 +238,7 @@ cac_certificate: File
 product_photos: File (max 5)
 business_plan: File (optional)
 financial_statements: File (optional)
-tax_clearance: File (optional)
+tax_clearance: File (optional) OR tax_identification: File (optional) // Both field names supported
 insurance_certificate: File (optional)
 quality_certification: File (optional)
 export_license: File (optional)
@@ -270,3 +270,5 @@ export_license: File (optional)
 5. **File Uploads**: Files are uploaded via FormData and processed by multer with Cloudinary storage.
 
 6. **Pitch Video**: Can be sent as either a JSON stringified object or as flattened fields with bracket notation.
+
+7. **Field Name Flexibility**: The backend accepts both `tax_clearance` and `tax_identification` field names for tax-related documents. Both are treated as the same document type internally.

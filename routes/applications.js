@@ -344,6 +344,7 @@ router.post('/complete', protect, upload.fields([
   { name: 'business_plan', maxCount: 1 },
   { name: 'financial_statements', maxCount: 1 },
   { name: 'tax_clearance', maxCount: 1 },
+  { name: 'tax_identification', maxCount: 1 }, // Added to support frontend field name
   { name: 'insurance_certificate', maxCount: 1 },
   { name: 'quality_certification', maxCount: 1 },
   { name: 'export_license', maxCount: 1 }
@@ -554,14 +555,17 @@ router.post('/complete', protect, upload.fields([
           continue;
         }
         
+        // Normalize field names - treat tax_identification as tax_clearance
+        const normalizedFieldName = fieldName === 'tax_identification' ? 'tax_clearance' : fieldName;
+        
         for (const file of files) {
           // Handle Cloudinary response properly
           const documentData = {
-            filename: file.originalname || fieldName,
-            original_name: file.originalname || fieldName,
+            filename: file.originalname || normalizedFieldName,
+            original_name: file.originalname || normalizedFieldName,
             url: file.path || file.secure_url,
             cloudinary_id: file.filename || file.public_id,
-            document_type: fieldName,
+            document_type: normalizedFieldName,
             size: file.size || 0,
             mime_type: file.mimetype || 'application/octet-stream',
             uploaded_at: new Date()

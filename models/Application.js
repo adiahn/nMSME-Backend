@@ -249,7 +249,7 @@ const applicationSchema = new mongoose.Schema({
   key_achievements: {
     type: String,
     required: true,
-    maxlength: 300
+    maxlength: 1000
   },
   products_services_description: {
     type: String,

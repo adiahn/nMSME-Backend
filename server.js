@@ -41,6 +41,9 @@ const corsOptions = {
       'https://nmsmeadmin.vercel.app', // Production admin frontend
       'http://kasedaaward.com',
       'https://kasedaaward.com',
+      'https://admin.kasedaaward.com', // Admin subdomain
+      'https://judge.kasedaaward.com', // Judge subdomain
+      'https://www.kasedaaward.com', // www subdomain
       process.env.APP_URL
     ].filter(Boolean); // Remove undefined values
     
@@ -90,10 +93,15 @@ app.use((req, res, next) => {
     'https://n-msme-frontend.vercel.app',
     'https://nmsmeadmin.vercel.app',
     'http://kasedaaward.com',
-    'https://kasedaaward.com'
+    'https://kasedaaward.com',
+    'https://admin.kasedaaward.com', // Admin subdomain
+    'https://judge.kasedaaward.com', // Judge subdomain
+    'https://www.kasedaaward.com' // www subdomain
   ];
   
-  if (allowedOrigins.includes(origin)) {
+  // Allow kasedaaward.com and its subdomains
+  if (allowedOrigins.includes(origin) || 
+      (origin && origin.includes('kasedaaward.com'))) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   res.header('Access-Control-Allow-Credentials', 'true');

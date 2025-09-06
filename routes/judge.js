@@ -67,6 +67,219 @@ router.get('/dashboard', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/judge/applications
+ * @desc    Get all applications overview for judge (available, reviewing, completed)
+ * @access  Private (Judge only)
+ */
+router.get('/applications', async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      category, 
+      sector, 
+      msme_strata, 
+      status,
+      sort = '-submission_date' 
+    } = req.query;
+    
+    const judge = await Judge.findOne({ user_id: req.user.id });
+    if (!judge) {
+      return res.status(404).json({
+        success: false,
+        error: 'Judge profile not found'
+      });
+    }
+
+    // Map judge expertise sectors to application categories
+    const expertiseToCategoryMap = {
+      'fashion': 'Fashion',
+      'it': 'Information Technology (IT)',
+      'agribusiness': 'Agribusiness',
+      'food_beverage': 'Food & Beverage',
+      'light_manufacturing': 'Light Manufacturing',
+      'creative_enterprise': 'Creative Enterprise',
+      'nano_category': 'Emerging Enterprise Award',
+      'emerging_enterprise': 'Emerging Enterprise Award'
+    };
+
+    // Get categories that match judge's expertise
+    const judgeCategories = judge.expertise_sectors.map(sector => expertiseToCategoryMap[sector]).filter(Boolean);
+    
+    console.log(`Judge expertise sectors: ${judge.expertise_sectors.join(', ')}`);
+    console.log(`Mapped to categories: ${judgeCategories.join(', ')}`);
+
+    // Build query based on status and judge's expertise
+    let query = {
+      category: { $in: judgeCategories } // Only show applications in judge's expertise categories
+    };
+    
+    if (status === 'available') {
+      query.workflow_stage = { $in: ['submitted', 'under_review'] };
+    } else if (status === 'reviewing') {
+      // Applications currently being reviewed by this judge
+      const reviewingAssignments = await ApplicationAssignment.find({ 
+        judge_id: judge._id, 
+        status: 'in_progress' 
+      });
+      query._id = { $in: reviewingAssignments.map(a => a.application_id) };
+      // Keep the category filter by adding it to the existing query
+      query.category = { $in: judgeCategories };
+    } else if (status === 'completed') {
+      // Applications completed by this judge
+      const completedAssignments = await ApplicationAssignment.find({ 
+        judge_id: judge._id, 
+        status: 'completed' 
+      });
+      query._id = { $in: completedAssignments.map(a => a.application_id) };
+      // Keep the category filter by adding it to the existing query
+      query.category = { $in: judgeCategories };
+    } else {
+      // All applications (no status filter) - keep the category filter
+      // query already has category filter from above
+    }
+    
+    // Only override category filter if a specific category is requested
+    if (category) {
+      // If specific category requested, check if it's in judge's expertise
+      if (judgeCategories.includes(category)) {
+        query.category = category;
+      } else {
+        // Return empty result if requested category is not in judge's expertise
+        return res.json({
+          success: true,
+          data: {
+            applications: [],
+            summary: {
+              total_applications: 0,
+              available: 0,
+              reviewing: 0,
+              completed: 0
+            },
+            pagination: {
+              current_page: parseInt(page),
+              total_pages: 0,
+              total_items: 0,
+              items_per_page: parseInt(limit)
+            },
+            filters: {
+              categories: judgeCategories,
+              sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
+              msme_strata: ['micro', 'small', 'medium'],
+              statuses: ['available', 'reviewing', 'completed']
+            }
+          }
+        });
+      }
+    }
+    if (sector) query.sector = sector;
+    if (msme_strata) query.msme_strata = msme_strata;
+
+    // Get applications with pagination
+    const applications = await Application.find(query)
+      .populate('user_id', 'first_name last_name')
+      .sort(sort)
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    // Get additional data for each application
+    const applicationsWithDetails = await Promise.all(
+      applications.map(async (app) => {
+        // Get lock status
+        const lockStatus = await ApplicationLock.checkLockStatus(app._id);
+        
+        // Get assignment status for this judge
+        const assignment = await ApplicationAssignment.findOne({
+          application_id: app._id,
+          judge_id: judge._id
+        });
+        
+        // Get review stats
+        const scores = await Score.find({ application_id: app._id });
+        const averageScore = scores.length > 0 
+          ? scores.reduce((sum, score) => sum + score.total_score, 0) / scores.length 
+          : null;
+
+        return {
+          id: app._id,
+          category: app.category,
+          business_name: app.business_name,
+          business_description: app.business_description,
+          workflow_stage: app.workflow_stage,
+          submission_date: app.submission_date,
+          sector: app.sector,
+          msme_strata: app.msme_strata,
+          status: app.status,
+          applicant: {
+            id: app.user_id._id,
+            first_name: app.user_id.first_name,
+            last_name: app.user_id.last_name,
+            company_name: app.business_name || 'N/A'
+          },
+          lock_status: lockStatus,
+          assignment_status: assignment?.status || 'not_assigned',
+          review_stats: {
+            total_reviews: scores.length,
+            average_score: averageScore,
+            last_reviewed: scores.length > 0 ? Math.max(...scores.map(s => new Date(s.scored_at))) : null
+          }
+        };
+      })
+    );
+
+    const total = await Application.countDocuments(query);
+
+    // Get summary counts (filtered by judge's categories)
+    const availableCount = await Application.countDocuments({ 
+      workflow_stage: { $in: ['submitted', 'under_review'] },
+      category: { $in: judgeCategories }
+    });
+    
+    const reviewingCount = await ApplicationAssignment.countDocuments({ 
+      judge_id: judge._id, 
+      status: 'in_progress' 
+    });
+    
+    const completedCount = await ApplicationAssignment.countDocuments({ 
+      judge_id: judge._id, 
+      status: 'completed' 
+    });
+
+    res.json({
+      success: true,
+      data: {
+        applications: applicationsWithDetails,
+        summary: {
+          total_applications: total,
+          available: availableCount,
+          reviewing: reviewingCount,
+          completed: completedCount
+        },
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(total / parseInt(limit)),
+          total_items: total,
+          items_per_page: parseInt(limit)
+        },
+        filters: {
+          categories: judgeCategories, // Only show categories the judge can access
+          sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
+          msme_strata: ['micro', 'small', 'medium'],
+          statuses: ['available', 'reviewing', 'completed']
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
+/**
  * @route   GET /api/judge/applications/available
  * @desc    Get all available applications in the pool for review
  * @access  Private (Judge only)
@@ -90,19 +303,62 @@ router.get('/applications/available', async (req, res) => {
       });
     }
 
-    // Build query for available applications
+    // Map judge expertise sectors to application categories
+    const expertiseToCategoryMap = {
+      'fashion': 'Fashion',
+      'it': 'Information Technology (IT)',
+      'agribusiness': 'Agribusiness',
+      'food_beverage': 'Food & Beverage',
+      'light_manufacturing': 'Light Manufacturing',
+      'creative_enterprise': 'Creative Enterprise',
+      'nano_category': 'Emerging Enterprise Award',
+      'emerging_enterprise': 'Emerging Enterprise Award'
+    };
+
+    // Get categories that match judge's expertise
+    const judgeCategories = judge.expertise_sectors.map(sector => expertiseToCategoryMap[sector]).filter(Boolean);
+    
+    console.log(`Available applications - Judge expertise: ${judge.expertise_sectors.join(', ')}`);
+    console.log(`Mapped to categories: ${judgeCategories.join(', ')}`);
+
+    // Build query for available applications in judge's expertise categories
     const query = {
-      workflow_stage: { $in: ['submitted', 'under_review'] } // Available for review
+      workflow_stage: { $in: ['submitted', 'under_review'] }, // Available for review
+      category: { $in: judgeCategories } // Only show applications in judge's expertise categories
     };
     
-    if (category) query.category = category;
+    // Only override category filter if a specific category is requested
+    if (category) {
+      // If specific category requested, check if it's in judge's expertise
+      if (judgeCategories.includes(category)) {
+        query.category = category;
+      } else {
+        // Return empty result if requested category is not in judge's expertise
+        return res.json({
+          success: true,
+          data: {
+            available_applications: [],
+            pagination: {
+              current_page: parseInt(page),
+              total_pages: 0,
+              total_items: 0,
+              items_per_page: parseInt(limit)
+            },
+            filters: {
+              categories: judgeCategories,
+              sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
+              msme_strata: ['micro', 'small', 'medium']
+            }
+          }
+        });
+      }
+    }
     if (sector) query.sector = sector;
     if (msme_strata) query.msme_strata = msme_strata;
 
     // Get applications with pagination
     const applications = await Application.find(query)
       .populate('user_id', 'first_name last_name')
-      .populate('business_profile_id', 'company_name registration_number year_established employee_count annual_revenue')
       .sort(sort)
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
@@ -125,7 +381,7 @@ router.get('/applications/available', async (req, res) => {
             id: app.user_id._id,
             first_name: app.user_id.first_name,
             last_name: app.user_id.last_name,
-            company_name: app.business_profile_id?.company_name || 'N/A'
+            company_name: app.business_name || 'N/A'
           },
           lock_status: lockStatus,
           review_stats: {
@@ -150,7 +406,7 @@ router.get('/applications/available', async (req, res) => {
           items_per_page: parseInt(limit)
         },
         filters: {
-          categories: ['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise'],
+          categories: judgeCategories, // Only show categories the judge can access
           sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
           msme_strata: ['micro', 'small', 'medium']
         }

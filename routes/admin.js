@@ -676,7 +676,7 @@ router.post('/judges/create', superAdminAuth, [
     .isArray({ min: 1 })
     .withMessage('At least one expertise sector is required'),
   body('expertise_sectors.*')
-    .isIn(['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise'])
+    .isIn(['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise', 'nano_category', 'emerging_enterprise'])
     .withMessage('Invalid expertise sector'),
   body('professional_credentials.title')
     .trim()
@@ -717,7 +717,7 @@ router.post('/judges/create', superAdminAuth, [
     .isArray()
     .withMessage('Preferred categories must be an array'),
   body('availability.preferred_categories.*')
-    .isIn(['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise'])
+    .isIn(['fashion', 'it', 'agribusiness', 'food_beverage', 'light_manufacturing', 'creative_enterprise', 'nano_category', 'emerging_enterprise'])
     .withMessage('Invalid preferred category')
 ], async (req, res) => {
   try {
