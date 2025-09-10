@@ -5,12 +5,16 @@ const crypto = require('crypto');
 const { Judge, Application, ApplicationAssignment, Score, Notification, User, ApplicationLock } = require('../models');
 const { protect, authorize } = require('../middleware/auth');
 const { fixApplicationDocumentUrls } = require('../utils/cloudinaryHelper');
+const equalDistributionRoutes = require('./equal-distribution');
 
 const router = express.Router();
 
 // Apply authentication and judge authorization middleware to all routes
 router.use(protect);
 router.use(authorize('judge'));
+
+// Include equal distribution routes
+router.use('/', equalDistributionRoutes);
 
 /**
  * @route   GET /api/judge/dashboard
@@ -69,7 +73,7 @@ router.get('/dashboard', async (req, res) => {
 
 /**
  * @route   GET /api/judge/applications
- * @desc    Get all applications overview for judge (available, reviewing, completed)
+ * @desc    Get applications with equal distribution among judges
  * @access  Private (Judge only)
  */
 router.get('/applications', async (req, res) => {
@@ -77,11 +81,7 @@ router.get('/applications', async (req, res) => {
     const { 
       page = 1, 
       limit = 20, 
-      category, 
-      sector, 
-      msme_strata, 
-      status,
-      sort = '-submission_date' 
+      status = 'available'
     } = req.query;
     
     const judge = await Judge.findOne({ user_id: req.user.id });
@@ -92,40 +92,26 @@ router.get('/applications', async (req, res) => {
       });
     }
 
-    // Map judge expertise sectors to application categories
-    const expertiseToCategoryMap = {
-      'fashion': 'Fashion',
-      'it': 'Information Technology (IT)',
-      'agribusiness': 'Agribusiness',
-      'food_beverage': 'Food & Beverage',
-      'light_manufacturing': 'Light Manufacturing',
-      'creative_enterprise': 'Creative Enterprise',
-      'nano_category': 'Emerging Enterprise Award',
-      'emerging_enterprise': 'Emerging Enterprise Award'
-    };
-
-    // Get categories that match judge's expertise
-    const judgeCategories = judge.expertise_sectors.map(sector => expertiseToCategoryMap[sector]).filter(Boolean);
+    // Get all active judges
+    const allJudges = await Judge.find({ is_active: true }).sort('createdAt');
+    const judgeIndex = allJudges.findIndex(j => j._id.equals(judge._id));
     
-    console.log(`Judge expertise sectors: ${judge.expertise_sectors.join(', ')}`);
-    console.log(`Mapped to categories: ${judgeCategories.join(', ')}`);
+    if (judgeIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Judge not found in active judges list'
+      });
+    }
 
-    // Build query based on status and judge's expertise
-    let query = {
-      category: { $in: judgeCategories } // Only show applications in judge's expertise categories
-    };
-    
-    if (status === 'available') {
-      query.workflow_stage = { $in: ['submitted', 'under_review'] };
-    } else if (status === 'reviewing') {
+    // Get all applications
+    let query = { workflow_stage: { $in: ['submitted', 'under_review'] } };
+    if (status === 'reviewing') {
       // Applications currently being reviewed by this judge
       const reviewingAssignments = await ApplicationAssignment.find({ 
         judge_id: judge._id, 
         status: 'in_progress' 
       });
       query._id = { $in: reviewingAssignments.map(a => a.application_id) };
-      // Keep the category filter by adding it to the existing query
-      query.category = { $in: judgeCategories };
     } else if (status === 'completed') {
       // Applications completed by this judge
       const completedAssignments = await ApplicationAssignment.find({ 
@@ -133,59 +119,46 @@ router.get('/applications', async (req, res) => {
         status: 'completed' 
       });
       query._id = { $in: completedAssignments.map(a => a.application_id) };
-      // Keep the category filter by adding it to the existing query
-      query.category = { $in: judgeCategories };
-    } else {
-      // All applications (no status filter) - keep the category filter
-      // query already has category filter from above
     }
-    
-    // Only override category filter if a specific category is requested
-    if (category) {
-      // If specific category requested, check if it's in judge's expertise
-      if (judgeCategories.includes(category)) {
-        query.category = category;
-      } else {
-        // Return empty result if requested category is not in judge's expertise
-        return res.json({
-          success: true,
-          data: {
-            applications: [],
-            summary: {
-              total_applications: 0,
-              available: 0,
-              reviewing: 0,
-              completed: 0
-            },
-            pagination: {
-              current_page: parseInt(page),
-              total_pages: 0,
-              total_items: 0,
-              items_per_page: parseInt(limit)
-            },
-            filters: {
-              categories: judgeCategories,
-              sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
-              msme_strata: ['micro', 'small', 'medium'],
-              statuses: ['available', 'reviewing', 'completed']
-            }
-          }
-        });
-      }
-    }
-    if (sector) query.sector = sector;
-    if (msme_strata) query.msme_strata = msme_strata;
 
-    // Get applications with pagination
-    const applications = await Application.find(query)
+    const allApplications = await Application.find(query)
       .populate('user_id', 'first_name last_name')
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit));
+      .sort('createdAt'); // Sort by creation date for consistent distribution
+
+    // Calculate random distribution
+    const totalApplications = allApplications.length;
+    const totalJudges = allJudges.length;
+    const applicationsPerJudge = Math.floor(totalApplications / totalJudges);
+    const extraApplications = totalApplications % totalJudges;
+
+    // Create a deterministic random distribution based on judge ID
+    // This ensures the same judge always gets the same applications
+    const judgeSeed = judge._id.toString().slice(-8); // Use last 8 chars of judge ID as seed
+    const seed = parseInt(judgeSeed, 16) % 1000000; // Convert to number for seeding
+    
+    // Shuffle applications using a seeded random function
+    const shuffledApplications = [...allApplications];
+    for (let i = shuffledApplications.length - 1; i > 0; i--) {
+      const j = (seed + i * 7) % (i + 1); // Pseudo-random with seed
+      [shuffledApplications[i], shuffledApplications[j]] = [shuffledApplications[j], shuffledApplications[i]];
+    }
+
+    // Calculate this judge's range in the shuffled array
+    const startIndex = judgeIndex * applicationsPerJudge + Math.min(judgeIndex, extraApplications);
+    const endIndex = startIndex + applicationsPerJudge + (judgeIndex < extraApplications ? 1 : 0);
+
+    // Get this judge's applications from shuffled array
+    const judgeApplications = shuffledApplications.slice(startIndex, endIndex);
+
+    // Apply pagination to judge's applications
+    const paginatedApplications = judgeApplications.slice(
+      (parseInt(page) - 1) * parseInt(limit),
+      parseInt(page) * parseInt(limit)
+    );
 
     // Get additional data for each application
     const applicationsWithDetails = await Promise.all(
-      applications.map(async (app) => {
+      paginatedApplications.map(async (app) => {
         // Get lock status
         const lockStatus = await ApplicationLock.checkLockStatus(app._id);
         
@@ -200,6 +173,21 @@ router.get('/applications', async (req, res) => {
         const averageScore = scores.length > 0 
           ? scores.reduce((sum, score) => sum + score.total_score, 0) / scores.length 
           : null;
+
+        // Check if this application matches judge's expertise
+        const expertiseToSectorMap = {
+          'fashion': 'Fashion',
+          'it': 'Information Technology (IT)',
+          'agribusiness': 'Agribusiness',
+          'food_beverage': 'Food & Beverage',
+          'light_manufacturing': 'Light Manufacturing',
+          'creative_enterprise': 'Creative Enterprise',
+          'nano_category': 'Emerging Enterprise Award',
+          'emerging_enterprise': 'Emerging Enterprise Award'
+        };
+        
+        const judgeSectors = judge.expertise_sectors.map(sector => expertiseToSectorMap[sector]).filter(Boolean);
+        const expertiseMatch = judgeSectors.includes(app.sector);
 
         return {
           id: app._id,
@@ -223,17 +211,15 @@ router.get('/applications', async (req, res) => {
             total_reviews: scores.length,
             average_score: averageScore,
             last_reviewed: scores.length > 0 ? Math.max(...scores.map(s => new Date(s.scored_at))) : null
-          }
+          },
+          expertise_match: expertiseMatch
         };
       })
     );
 
-    const total = await Application.countDocuments(query);
-
-    // Get summary counts (filtered by judge's categories)
+    // Get summary counts
     const availableCount = await Application.countDocuments({ 
-      workflow_stage: { $in: ['submitted', 'under_review'] },
-      category: { $in: judgeCategories }
+      workflow_stage: { $in: ['submitted', 'under_review'] }
     });
     
     const reviewingCount = await ApplicationAssignment.countDocuments({ 
@@ -246,26 +232,39 @@ router.get('/applications', async (req, res) => {
       status: 'completed' 
     });
 
+    // Calculate distribution info
+    const totalPages = Math.ceil(judgeApplications.length / parseInt(limit));
+    const expertiseMatches = applicationsWithDetails.filter(app => app.expertise_match).length;
+    const overflowApplications = applicationsWithDetails.filter(app => !app.expertise_match).length;
+
     res.json({
       success: true,
       data: {
         applications: applicationsWithDetails,
         summary: {
-          total_applications: total,
+          total_applications: judgeApplications.length,
           available: availableCount,
           reviewing: reviewingCount,
-          completed: completedCount
+          completed: completedCount,
+          expertise_matches: expertiseMatches,
+          overflow_applications: overflowApplications
         },
         pagination: {
           current_page: parseInt(page),
-          total_pages: Math.ceil(total / parseInt(limit)),
-          total_items: total,
+          total_pages: totalPages,
+          total_items: judgeApplications.length,
           items_per_page: parseInt(limit)
         },
+        distribution_info: {
+          judge_index: judgeIndex + 1,
+          total_judges: totalJudges,
+          applications_per_judge: applicationsPerJudge,
+          extra_applications: extraApplications,
+          judge_range: `${startIndex + 1}-${endIndex}`,
+          distribution_method: 'random_equal_workload',
+          judge_seed: judgeSeed
+        },
         filters: {
-          categories: judgeCategories, // Only show categories the judge can access
-          sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
-          msme_strata: ['micro', 'small', 'medium'],
           statuses: ['available', 'reviewing', 'completed']
         }
       }
@@ -304,8 +303,8 @@ router.get('/applications/available', async (req, res) => {
       });
     }
 
-    // Map judge expertise sectors to application categories
-    const expertiseToCategoryMap = {
+    // Map judge expertise sectors to application sectors
+    const expertiseToSectorMap = {
       'fashion': 'Fashion',
       'it': 'Information Technology (IT)',
       'agribusiness': 'Agribusiness',
@@ -316,25 +315,25 @@ router.get('/applications/available', async (req, res) => {
       'emerging_enterprise': 'Emerging Enterprise Award'
     };
 
-    // Get categories that match judge's expertise
-    const judgeCategories = judge.expertise_sectors.map(sector => expertiseToCategoryMap[sector]).filter(Boolean);
+    // Get sectors that match judge's expertise
+    const judgeSectors = judge.expertise_sectors.map(sector => expertiseToSectorMap[sector]).filter(Boolean);
     
     console.log(`Available applications - Judge expertise: ${judge.expertise_sectors.join(', ')}`);
-    console.log(`Mapped to categories: ${judgeCategories.join(', ')}`);
+    console.log(`Mapped to application sectors: ${judgeSectors.join(', ')}`);
 
-    // Build query for available applications in judge's expertise categories
+    // Build query for available applications in judge's expertise sectors
     const query = {
       workflow_stage: { $in: ['submitted', 'under_review'] }, // Available for review
-      category: { $in: judgeCategories } // Only show applications in judge's expertise categories
+      sector: { $in: judgeSectors } // Only show applications in judge's expertise sectors
     };
     
-    // Only override category filter if a specific category is requested
-    if (category) {
-      // If specific category requested, check if it's in judge's expertise
-      if (judgeCategories.includes(category)) {
-        query.category = category;
+    // Only override sector filter if a specific sector is requested
+    if (sector) {
+      // If specific sector requested, check if it's in judge's expertise
+      if (judgeSectors.includes(sector)) {
+        query.sector = sector;
       } else {
-        // Return empty result if requested category is not in judge's expertise
+        // Return empty result if requested sector is not in judge's expertise
         return res.json({
           success: true,
           data: {
@@ -346,15 +345,14 @@ router.get('/applications/available', async (req, res) => {
               items_per_page: parseInt(limit)
             },
             filters: {
-              categories: judgeCategories,
-              sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
+              sectors: judgeSectors,
+              categories: ['Fashion', 'Information Technology (IT)', 'Agribusiness', 'Food & Beverage', 'Light Manufacturing', 'Creative Enterprise', 'Emerging Enterprise Award'],
               msme_strata: ['micro', 'small', 'medium']
             }
           }
         });
       }
     }
-    if (sector) query.sector = sector;
     if (msme_strata) query.msme_strata = msme_strata;
 
     // Get applications with pagination
@@ -407,8 +405,8 @@ router.get('/applications/available', async (req, res) => {
           items_per_page: parseInt(limit)
         },
         filters: {
-          categories: judgeCategories, // Only show categories the judge can access
-          sectors: ['fashion', 'technology', 'agriculture', 'food', 'manufacturing', 'creative'],
+          sectors: judgeSectors, // Only show sectors the judge can access
+          categories: ['Fashion', 'Information Technology (IT)', 'Agribusiness', 'Food & Beverage', 'Light Manufacturing', 'Creative Enterprise', 'Emerging Enterprise Award'],
           msme_strata: ['micro', 'small', 'medium']
         }
       }
@@ -578,8 +576,8 @@ router.get('/applications/:applicationId', async (req, res) => {
       });
     }
 
-    // Map judge's expertise to categories
-    const expertiseToCategoryMap = {
+    // Map judge's expertise to sectors
+    const expertiseToSectorMap = {
       'fashion': 'Fashion',
       'it': 'Information Technology (IT)',
       'agribusiness': 'Agribusiness',
@@ -589,7 +587,7 @@ router.get('/applications/:applicationId', async (req, res) => {
       'nano_category': 'Emerging Enterprise Award',
       'emerging_enterprise': 'Emerging Enterprise Award'
     };
-    const judgeCategories = judge.expertise_sectors.map(sector => expertiseToCategoryMap[sector]).filter(Boolean);
+    const judgeSectors = judge.expertise_sectors.map(sector => expertiseToSectorMap[sector]).filter(Boolean);
 
     // Get application details
     const application = await Application.findById(applicationId)
@@ -602,13 +600,8 @@ router.get('/applications/:applicationId', async (req, res) => {
       });
     }
 
-    // Check if application is in judge's expertise categories
-    if (!judgeCategories.includes(application.category)) {
-      return res.status(403).json({
-        success: false,
-        error: 'You are not authorized to review applications in this category'
-      });
-    }
+    // With random distribution, judges can review any application assigned to them
+    // No need to check expertise sectors - all assigned applications are reviewable
 
     // Check if application is available for review
     if (application.workflow_stage !== 'submitted' && application.workflow_stage !== 'under_review') {
@@ -768,8 +761,10 @@ router.get('/applications/:applicationId', async (req, res) => {
         judge_authorization: {
           can_view: true,
           can_review: !lockStatus.is_locked || lockStatus.locked_by === judge._id.toString(),
-          expertise_match: judgeCategories.includes(application.category),
-          judge_categories: judgeCategories
+          expertise_match: judgeSectors.includes(application.sector),
+          judge_sectors: judgeSectors,
+          distribution_method: 'random_equal_workload',
+          note: 'With random distribution, judges can review any assigned application regardless of expertise match'
         }
       }
     });

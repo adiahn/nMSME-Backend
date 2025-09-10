@@ -806,6 +806,62 @@ router.post('/judges/create', superAdminAuth, [
 });
 
 /**
+ * @desc    Delete application (Admin only)
+ * @route   DELETE /api/admin/applications/:id
+ * @access  Private (Admin/Super Admin only)
+ */
+router.delete('/applications/:id', [
+  protect,
+  authorize('admin', 'super_admin')
+], async (req, res) => {
+  try {
+    const application = await Application.findById(req.params.id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    // Check if application can be deleted
+    if (application.workflow_stage === 'under_review' || 
+        application.workflow_stage === 'shortlisted' || 
+        application.workflow_stage === 'finalist' || 
+        application.workflow_stage === 'winner') {
+      return res.status(400).json({
+        success: false,
+        error: 'Application cannot be deleted as it is currently under review or has progressed further'
+      });
+    }
+
+    // Delete associated scores
+    await Score.deleteMany({ assignment_id: req.params.id });
+
+    // Delete the application
+    await Application.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Application deleted successfully',
+      data: {
+        deleted_application_id: req.params.id,
+        business_name: application.business_name,
+        deleted_by: req.user.email,
+        deleted_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin delete application error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error deleting application'
+    });
+  }
+});
+
+/**
  * @route   GET /api/admin/debug/applications
  * @desc    Get all applications (public endpoint for debugging)
  * @access  Public (for debugging)

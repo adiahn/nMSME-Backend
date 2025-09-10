@@ -10,7 +10,7 @@ async function checkRecentApps() {
     console.log('✅ Connected to MongoDB\n');
 
     // Get recent applications
-    const Application = require('./models/Application');
+    const Application = require('../models/Application');
     const apps = await Application.find()
       .select('business_name category workflow_stage createdAt')
       .sort('-createdAt')

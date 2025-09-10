@@ -17,6 +17,7 @@ const judgeRoutes = require('./routes/judge');
 const adminRoutes = require('./routes/admin');
 const publicRoutes = require('./routes/public');
 const categoryRoutes = require('./routes/categories');
+const scoringRoutes = require('./routes/scoring');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -242,6 +243,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/judge', judgeRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/scoring', scoringRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/categories', categoryRoutes);
 

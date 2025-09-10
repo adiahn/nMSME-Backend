@@ -44,65 +44,65 @@ const documentSchema = new mongoose.Schema({
   }
 });
 
-// Score schema for judging
+// Score schema for judging - Updated with new 6 criteria
 const scoreSchema = new mongoose.Schema({
   judge_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Judge',
     required: true
   },
-  // Scoring rubric from PRD - 6 criteria with exact weights
-  innovation_differentiation: {
+  // New 6-criteria scoring system (100 points total)
+  business_viability_financial_health: {
     score: {
       type: Number,
       required: true,
       min: 0,
-      max: 20
+      max: 25 // 25% weight
     },
     comments: String
   },
-  market_traction_growth: {
+  market_opportunity_traction: {
     score: {
       type: Number,
       required: true,
       min: 0,
-      max: 20
+      max: 20 // 20% weight
     },
     comments: String
   },
-  impact_job_creation: {
+  social_impact_job_creation: {
     score: {
       type: Number,
       required: true,
       min: 0,
-      max: 25
+      max: 20 // 20% weight
     },
     comments: String
   },
-  financial_health_governance: {
+  innovation_technology_adoption: {
     score: {
       type: Number,
       required: true,
       min: 0,
-      max: 15
+      max: 15 // 15% weight
     },
     comments: String
   },
-  inclusion_sustainability: {
+  sustainability_environmental_impact: {
     score: {
       type: Number,
       required: true,
       min: 0,
-      max: 10
+      max: 10 // 10% weight
     },
     comments: String
   },
-  scalability_award_use: {
+  management_leadership: {
     score: {
       type: Number,
       required: true,
       min: 0,
-      max: 10
+      max: 10 // 10% weight
     },
     comments: String
   },
@@ -111,6 +111,10 @@ const scoreSchema = new mongoose.Schema({
     required: true,
     min: 0,
     max: 100
+  },
+  grade: {
+    type: String,
+    enum: ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F']
   },
   date: {
     type: Date,

@@ -6,65 +6,62 @@ const scoreSchema = new mongoose.Schema({
     ref: 'ApplicationAssignment',
     required: true
   },
-  // Updated to match frontend ScoringRubric interface
-  innovation_differentiation: {
+  // New 6-criteria scoring system (100 points total)
+  business_viability_financial_health: {
     type: Number,
-    required: [true, 'Innovation differentiation score is required'],
+    required: [true, 'Business viability & financial health score is required'],
     min: 0,
-    max: 100,
+    max: 25, // 25% weight
     default: 0
   },
-  market_traction_growth: {
+  market_opportunity_traction: {
     type: Number,
-    required: [true, 'Market traction & growth score is required'],
+    required: [true, 'Market opportunity & traction score is required'],
     min: 0,
-    max: 100,
+    max: 20, // 20% weight
     default: 0
   },
-  impact_job_creation: {
+  social_impact_job_creation: {
     type: Number,
-    required: [true, 'Impact & job creation score is required'],
+    required: [true, 'Social impact & job creation score is required'],
     min: 0,
-    max: 100,
+    max: 20, // 20% weight
     default: 0
   },
-  financial_health_governance: {
+  innovation_technology_adoption: {
     type: Number,
-    required: [true, 'Financial health & governance score is required'],
+    required: [true, 'Innovation & technology adoption score is required'],
     min: 0,
-    max: 100,
+    max: 15, // 15% weight
     default: 0
   },
-  inclusion_sustainability: {
+  sustainability_environmental_impact: {
     type: Number,
-    required: [true, 'Inclusion & sustainability score is required'],
+    required: [true, 'Sustainability & environmental impact score is required'],
     min: 0,
-    max: 100,
+    max: 10, // 10% weight
     default: 0
   },
-  scalability_award_use: {
+  management_leadership: {
     type: Number,
-    required: [true, 'Scalability & award use score is required'],
+    required: [true, 'Management & leadership score is required'],
     min: 0,
-    max: 100,
+    max: 10, // 10% weight
     default: 0
   },
-  // Calculated fields
+  // Calculated fields (set by pre-save middleware)
   total_score: {
     type: Number,
-    required: true,
     min: 0,
     max: 100
   },
   weighted_score: {
     type: Number,
-    required: true,
     min: 0,
     max: 100
   },
   grade: {
     type: String,
-    required: true,
     enum: ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F']
   },
   // Additional fields
@@ -82,36 +79,36 @@ const scoreSchema = new mongoose.Schema({
 
 // Pre-save middleware to calculate total and weighted scores
 scoreSchema.pre('save', function(next) {
-  // Calculate total score (simple average)
-  this.total_score = (
-    this.innovation_differentiation +
-    this.market_traction_growth +
-    this.impact_job_creation +
-    this.financial_health_governance +
-    this.inclusion_sustainability +
-    this.scalability_award_use
-  ) / 6;
-
-  // Calculate weighted score based on frontend percentages
-  this.weighted_score = (
-    (this.innovation_differentiation * 0.20) +      // 20%
-    (this.market_traction_growth * 0.20) +         // 20%
-    (this.impact_job_creation * 0.25) +            // 25%
-    (this.financial_health_governance * 0.15) +    // 15%
-    (this.inclusion_sustainability * 0.10) +        // 10%
-    (this.scalability_award_use * 0.10)            // 10%
-  );
-
-  // Determine grade based on weighted score
-  if (this.weighted_score >= 90) this.grade = 'A+';
-  else if (this.weighted_score >= 80) this.grade = 'A';
-  else if (this.weighted_score >= 70) this.grade = 'B+';
-  else if (this.weighted_score >= 60) this.grade = 'B';
-  else if (this.weighted_score >= 50) this.grade = 'C+';
-  else if (this.weighted_score >= 40) this.grade = 'C';
-  else if (this.weighted_score >= 30) this.grade = 'D';
-  else this.grade = 'F';
-
+  // Calculate total score (sum of all criteria)
+  this.total_score = this.business_viability_financial_health + 
+                    this.market_opportunity_traction + 
+                    this.social_impact_job_creation + 
+                    this.innovation_technology_adoption + 
+                    this.sustainability_environmental_impact + 
+                    this.management_leadership;
+  
+  // Calculate weighted score (convert to 100-point scale)
+  this.weighted_score = this.total_score; // Already weighted by max values
+  
+  // Calculate grade based on total score
+  if (this.total_score >= 90) {
+    this.grade = 'A+';
+  } else if (this.total_score >= 80) {
+    this.grade = 'A';
+  } else if (this.total_score >= 70) {
+    this.grade = 'B+';
+  } else if (this.total_score >= 60) {
+    this.grade = 'B';
+  } else if (this.total_score >= 50) {
+    this.grade = 'C+';
+  } else if (this.total_score >= 40) {
+    this.grade = 'C';
+  } else if (this.total_score >= 30) {
+    this.grade = 'D';
+  } else {
+    this.grade = 'F';
+  }
+  
   next();
 });
 
