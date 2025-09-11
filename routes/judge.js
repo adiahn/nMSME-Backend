@@ -941,7 +941,12 @@ router.post('/applications/:applicationId/score', async (req, res) => {
 
     if (score) {
       // Update existing score
-      score.criteria_scores = criteria_scores;
+      score.business_viability_financial_health = criteria_scores.business_viability_financial_health;
+      score.market_opportunity_traction = criteria_scores.market_opportunity_traction;
+      score.social_impact_job_creation = criteria_scores.social_impact_job_creation;
+      score.innovation_technology_adoption = criteria_scores.innovation_technology_adoption;
+      score.sustainability_environmental_impact = criteria_scores.sustainability_environmental_impact;
+      score.management_leadership = criteria_scores.management_leadership;
       score.total_score = overall_score;
       score.comments = comments;
       score.recommendations = recommendations;
@@ -953,7 +958,12 @@ router.post('/applications/:applicationId/score', async (req, res) => {
       score = await Score.create({
         application_id: applicationId,
         judge_id: judge._id,
-        criteria_scores,
+        business_viability_financial_health: criteria_scores.business_viability_financial_health,
+        market_opportunity_traction: criteria_scores.market_opportunity_traction,
+        social_impact_job_creation: criteria_scores.social_impact_job_creation,
+        innovation_technology_adoption: criteria_scores.innovation_technology_adoption,
+        sustainability_environmental_impact: criteria_scores.sustainability_environmental_impact,
+        management_leadership: criteria_scores.management_leadership,
         total_score: overall_score,
         comments,
         recommendations,
@@ -973,12 +983,18 @@ router.post('/applications/:applicationId/score', async (req, res) => {
         score: {
           id: score._id,
           total_score: score.total_score,
-          criteria_scores: score.criteria_scores,
+          criteria_scores: {
+            business_viability_financial_health: score.business_viability_financial_health,
+            market_opportunity_traction: score.market_opportunity_traction,
+            social_impact_job_creation: score.social_impact_job_creation,
+            innovation_technology_adoption: score.innovation_technology_adoption,
+            sustainability_environmental_impact: score.sustainability_environmental_impact,
+            management_leadership: score.management_leadership
+          },
           comments: score.comments,
           recommendations: score.recommendations,
           scored_at: score.scored_at
-        },
-        lock_released: true
+        }
       }
     });
   } catch (error) {
