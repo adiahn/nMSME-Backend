@@ -916,25 +916,20 @@ router.post('/applications/:applicationId/score', async (req, res) => {
       });
     }
 
-    // Check if judge has an active lock on this application
-    const lock = await ApplicationLock.findOne({
-      application_id: applicationId,
-      judge_id: judge._id,
-      is_active: true
-    });
-
-    if (!lock) {
-      return res.status(400).json({
+    // No lock requirement - judges can submit scores directly
+    // Check if application exists and is available for review
+    const application = await Application.findById(applicationId);
+    if (!application) {
+      return res.status(404).json({
         success: false,
-        error: 'You must have an active lock to submit a score'
+        error: 'Application not found'
       });
     }
 
-    if (lock.isExpired()) {
-      await lock.releaseLock();
-      return res.status(410).json({
+    if (application.workflow_stage !== 'submitted' && application.workflow_stage !== 'under_review') {
+      return res.status(400).json({
         success: false,
-        error: 'Your review session has expired. Please start a new review.'
+        error: 'Application is not available for review'
       });
     }
 
@@ -967,15 +962,9 @@ router.post('/applications/:applicationId/score', async (req, res) => {
       });
     }
 
-    // Release the lock
-    await ApplicationLock.releaseLock(applicationId, judge._id);
-
-    // Update application status
-    const application = await Application.findById(applicationId);
-    if (application) {
-      application.workflow_stage = 'reviewed';
-      await application.save();
-    }
+    // Update application status to under_review (not reviewed since that's not a valid enum)
+    application.workflow_stage = 'under_review';
+    await application.save();
 
     res.json({
       success: true,
