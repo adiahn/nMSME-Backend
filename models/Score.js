@@ -4,6 +4,16 @@ const scoreSchema = new mongoose.Schema({
   assignment_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ApplicationAssignment',
+    required: false
+  },
+  application_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Application',
+    required: false
+  },
+  judge_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Judge',
     required: true
   },
   // New 6-criteria scoring system (100 points total)

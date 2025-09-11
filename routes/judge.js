@@ -17,6 +17,17 @@ router.use(authorize('judge'));
 router.use('/', equalDistributionRoutes);
 
 /**
+ * @route   GET /api/judge/applications/random-distribution
+ * @desc    Get applications with random distribution (alias for main applications endpoint)
+ * @access  Private (Judge only)
+ */
+router.get('/applications/random-distribution', async (req, res) => {
+  // Redirect to main applications endpoint which already uses random distribution
+  req.url = '/applications';
+  return router.handle(req, res);
+});
+
+/**
  * @route   GET /api/judge/dashboard
  * @desc    Get judge dashboard with statistics
  * @access  Private (Judge only)
@@ -613,6 +624,16 @@ router.get('/applications/:applicationId', async (req, res) => {
 
     // Get lock status
     const lockStatus = await ApplicationLock.checkLockStatus(applicationId);
+    
+    // Add locked_by_current_user field for frontend
+    const isLockedByCurrentUser = lockStatus.is_locked && 
+      lockStatus.locked_by && 
+      lockStatus.locked_by === judge._id.toString();
+    
+    const enhancedLockStatus = {
+      ...lockStatus,
+      locked_by_current_user: isLockedByCurrentUser
+    };
 
     // Get previous scores if any
     const previousScores = await Score.find({ application_id: applicationId })
@@ -730,12 +751,12 @@ router.get('/applications/:applicationId', async (req, res) => {
         },
         
         // Lock and Review Information
-        lock_status: lockStatus,
+        lock_status: enhancedLockStatus,
         review_info: {
-          can_review: !lockStatus.is_locked || lockStatus.locked_by === judge._id.toString(),
-          is_locked: lockStatus.is_locked,
-          locked_by: lockStatus.locked_by,
-          lock_expires_at: lockStatus.lock_expires_at
+          can_review: !enhancedLockStatus.is_locked || enhancedLockStatus.locked_by === judge._id.toString(),
+          is_locked: enhancedLockStatus.is_locked,
+          locked_by: enhancedLockStatus.locked_by,
+          lock_expires_at: enhancedLockStatus.lock_expires_at
         },
         
         // Previous Scores from Other Judges

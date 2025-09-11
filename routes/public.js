@@ -174,6 +174,200 @@ router.get('/check-application-status', async (req, res) => {
   }
 });
 
+/**
+ * @route   GET /api/public/reviewed-applications
+ * @desc    Get all reviewed applications with scores (public endpoint)
+ * @access  Public
+ */
+router.get('/reviewed-applications', async (req, res) => {
+  try {
+    console.log('Public endpoint: Fetching reviewed applications');
+    
+    const { Application, Score, Judge, User } = require('../models');
+    
+    // Get applications that have been scored (under_review or beyond)
+    const applications = await Application.find({
+      workflow_stage: { $in: ['under_review', 'shortlisted', 'finalist', 'winner'] }
+    })
+    .populate('user_id', 'first_name last_name email')
+    .sort('-updatedAt')
+    .lean();
+
+    console.log(`Found ${applications.length} reviewed applications`);
+
+    // Get scores for these applications
+    const applicationIds = applications.map(app => app._id);
+    const scores = await Score.find({
+      application_id: { $in: applicationIds }
+    })
+    .populate({
+      path: 'judge_id',
+      populate: {
+        path: 'user_id',
+        select: 'first_name last_name'
+      }
+    })
+    .lean();
+
+    // Group scores by application
+    const scoresByApplication = {};
+    scores.forEach(score => {
+      if (!scoresByApplication[score.application_id]) {
+        scoresByApplication[score.application_id] = [];
+      }
+      scoresByApplication[score.application_id].push(score);
+    });
+
+    // Format response
+    const reviewedApplications = applications.map(app => {
+      const appScores = scoresByApplication[app._id] || [];
+      const averageScore = appScores.length > 0 
+        ? appScores.reduce((sum, score) => sum + score.total_score, 0) / appScores.length 
+        : 0;
+
+      return {
+        id: app._id,
+        business_name: app.business_name,
+        category: app.category,
+        sector: app.sector,
+        msme_strata: app.msme_strata,
+        workflow_stage: app.workflow_stage,
+        status_display: getPublicStatusDisplay(app.workflow_stage),
+        applicant: {
+          name: `${app.user_id.first_name} ${app.user_id.last_name}`,
+          email: app.user_id.email
+        },
+        created_at: app.createdAt,
+        updated_at: app.updatedAt,
+        scoring: {
+          total_scores: appScores.length,
+          average_score: Math.round(averageScore * 100) / 100,
+          scores: appScores.map(score => ({
+            judge_name: score.judge_id && score.judge_id.user_id 
+              ? `${score.judge_id.user_id.first_name} ${score.judge_id.user_id.last_name}`
+              : 'Unknown Judge',
+            total_score: score.total_score,
+            grade: score.grade,
+            scored_at: score.scored_at,
+            comments: score.comments,
+            criteria_scores: {
+              business_viability_financial_health: score.business_viability_financial_health,
+              market_opportunity_traction: score.market_opportunity_traction,
+              social_impact_job_creation: score.social_impact_job_creation,
+              innovation_technology_adoption: score.innovation_technology_adoption,
+              sustainability_environmental_impact: score.sustainability_environmental_impact,
+              management_leadership: score.management_leadership
+            }
+          }))
+        }
+      };
+    });
+
+    res.json({
+      success: true,
+      message: 'Reviewed applications retrieved successfully',
+      count: reviewedApplications.length,
+      timestamp: new Date().toISOString(),
+      applications: reviewedApplications
+    });
+
+  } catch (error) {
+    console.error('Error fetching reviewed applications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error fetching reviewed applications',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/public/reviewed-applications/summary
+ * @desc    Get summary statistics of reviewed applications (public endpoint)
+ * @access  Public
+ */
+router.get('/reviewed-applications/summary', async (req, res) => {
+  try {
+    console.log('Public endpoint: Fetching reviewed applications summary');
+    
+    const { Application, Score } = require('../models');
+    
+    // Get counts by workflow stage
+    const stageCounts = await Application.aggregate([
+      {
+        $match: {
+          workflow_stage: { $in: ['under_review', 'shortlisted', 'finalist', 'winner'] }
+        }
+      },
+      {
+        $group: {
+          _id: '$workflow_stage',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get total reviewed applications
+    const totalReviewed = await Application.countDocuments({
+      workflow_stage: { $in: ['under_review', 'shortlisted', 'finalist', 'winner'] }
+    });
+
+    // Get scoring statistics
+    const scoringStats = await Score.aggregate([
+      {
+        $group: {
+          _id: null,
+          total_scores: { $sum: 1 },
+          average_score: { $avg: '$total_score' },
+          highest_score: { $max: '$total_score' },
+          lowest_score: { $min: '$total_score' }
+        }
+      }
+    ]);
+
+    // Get grade distribution
+    const gradeDistribution = await Score.aggregate([
+      {
+        $group: {
+          _id: '$grade',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Reviewed applications summary retrieved successfully',
+      timestamp: new Date().toISOString(),
+      summary: {
+        total_reviewed_applications: totalReviewed,
+        stage_distribution: stageCounts.reduce((acc, stage) => {
+          acc[stage._id] = stage.count;
+          return acc;
+        }, {}),
+        scoring_statistics: scoringStats[0] || {
+          total_scores: 0,
+          average_score: 0,
+          highest_score: 0,
+          lowest_score: 0
+        },
+        grade_distribution: gradeDistribution
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching reviewed applications summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error fetching reviewed applications summary',
+      details: error.message
+    });
+  }
+});
+
 // Helper function for public status display
 function getPublicStatusDisplay(workflowStage) {
   const statusMap = {
