@@ -899,6 +899,13 @@ router.post('/applications/:applicationId/review/start', async (req, res) => {
  */
 router.post('/applications/:applicationId/score', async (req, res) => {
   try {
+    console.log('Score submission request received:', {
+      applicationId: req.params.applicationId,
+      hasAuth: !!req.headers.authorization,
+      user: req.user ? req.user._id : 'No user',
+      body: req.body
+    });
+
     const { applicationId } = req.params;
     const { 
       criteria_scores, 
@@ -907,6 +914,49 @@ router.post('/applications/:applicationId/score', async (req, res) => {
       recommendations, 
       review_notes 
     } = req.body;
+
+    // Check if user is authenticated
+    if (!req.user) {
+      console.error('No authenticated user found');
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate required fields
+    if (!criteria_scores) {
+      return res.status(400).json({
+        success: false,
+        error: 'criteria_scores is required'
+      });
+    }
+
+    if (!overall_score) {
+      return res.status(400).json({
+        success: false,
+        error: 'overall_score is required'
+      });
+    }
+
+    // Validate criteria_scores structure
+    const requiredCriteria = [
+      'business_viability_financial_health',
+      'market_opportunity_traction', 
+      'social_impact_job_creation',
+      'innovation_technology_adoption',
+      'sustainability_environmental_impact',
+      'management_leadership'
+    ];
+
+    for (const criterion of requiredCriteria) {
+      if (criteria_scores[criterion] === undefined || criteria_scores[criterion] === null) {
+        return res.status(400).json({
+          success: false,
+          error: `Missing required criteria: ${criterion}`
+        });
+      }
+    }
 
     const judge = await Judge.findOne({ user_id: req.user.id });
     if (!judge) {
@@ -999,9 +1049,15 @@ router.post('/applications/:applicationId/score', async (req, res) => {
     });
   } catch (error) {
     console.error('Error submitting score:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to submit score'
+      error: 'Failed to submit score',
+      details: error.message
     });
   }
 });
